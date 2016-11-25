@@ -2,10 +2,12 @@ import bs4
 import ujson
 import sys
 import urllib.request
+import urllib.parse
 from dateutil.parser import parse
 import re
 import html
 
+page_url = None
 
 def download_real(url, *args, **kwargs):
     if "head" in kwargs and kwargs["head"]:
@@ -31,8 +33,13 @@ def download(url):
     return re.sub(r"^.*?<html", "<html", download_real(url), flags=re.S)
 
 
+def get_full_image(img):
+    return urllib.parse.urljoin(page_url, img.replace("/image/", "/original/").replace("/attach/", "/original/").replace("/media/", "/original/"))
+
+
 if __name__ == "__main__":
     url = sys.argv[1]
+    page_url = url
 
     #data = re.sub(r"^.*?<html", "<html", download(url), flags=re.S)
     #data = download(url)
@@ -51,7 +58,7 @@ if __name__ == "__main__":
             ".searchList ol li a",
             ".list_box li > a",
             "ol.article_post li a",
-            "#content #s_list #masonry ul li.box > a",
+            "#masonry ul li.box > a",
             "#content .entry_slist ol li > a",
             "#content #content-inner .list ul li > a"
         ]
@@ -134,23 +141,68 @@ if __name__ == "__main__":
         #    else:
         #        articletag = soup.select("#content")[0]
 
-        lightboxes = articletag.findAll(attrs={"data-lightbox": True})
         images = []
+        videos = []
+
+        articlestr = str(articletag)
+        re_images = re.findall("(https?://cfile\d+\.uf\.tistory\.com/(image|attach|original)/\w+)", articlestr)
+
+        for image in re_images:
+            url = get_full_image(image[0])
+
+            if url not in images:
+                images.append(url)
+
+        #re_videos = re.findall("https?://cfile\d+\.uf\.tistory\.com/media/\w+", articlestr)
+
+        #for video in re_videos:
+        #    url = get_full_image(video)
+
+        #    if url not in videos:
+        #        videos.append({
+        #            "image": None,
+        #            "video": url
+        #        })
+
+        lightboxes = articletag.findAll(attrs={"data-lightbox": True})
+
 
         for lightbox in lightboxes:
-            images.append(lightbox["data-url"].replace("/image/", "/original/").replace("/attach/", "/original/"))
+            image = get_full_image(lightbox["data-url"])
+            if image not in images:
+                images.append(image)
             #images.append(re.sub("/image/", "/original/", lightbox["data-url"]))
 
-        imageblocks = articletag.select(".imageblock img")
+        #imageblocks = articletag.select(".imageblock img")
+        imageblocks = articletag.select("p img, .imageblock img")
 
         for image in imageblocks:
             if "onclick" in image:
                 url = re.sub("^open_img\(['\"](.*)['\"]\)$", "\\1", image["onclick"])
 
-            url = re.sub("/image/", "/original/", image["src"])
+            url = image["src"]
+
+            url = get_full_image(url)
 
             if url not in images:
                 images.append(url)
+
+        videotags = articletag.select("video")
+
+        for video in videotags:
+            if video.has_attr("src"):
+                url = video["src"]
+            else:
+                sources = video.select("source")
+                if len(sources) > 0:
+                    url = sources[0]["src"]
+                else:
+                    continue
+
+            videos.append({
+                "image": None,
+                "video": get_full_image(url)
+            })
 
         myjson["entries"].append({
             "caption": title,
@@ -158,7 +210,7 @@ if __name__ == "__main__":
             "date": date,
             "author": author,
             "images": images,
-            "videos": []
+            "videos": videos
         })
 
         sys.stderr.write("done\n")

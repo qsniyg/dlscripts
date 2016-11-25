@@ -444,7 +444,7 @@ if __name__ == "__main__":
             sys.stdout.write("Downloading video " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            if jsond["config"]["generator"] == "instagram" or url.endswith(".mp4"):
+            if jsond["config"]["generator"] == "instagram" or (".tistory.com/" in url) or url.endswith(".mp4"):
                 fullout = fullout + ".mp4"
 
                 #if os.path.exists(fullout):
