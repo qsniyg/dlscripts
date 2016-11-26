@@ -1,5 +1,6 @@
 import sys
 import json
+import urllib.parse
 import urllib.request
 import shutil
 import datetime
@@ -72,9 +73,15 @@ def getsuffix(i, array):
     else:
         return ""
 
-def getrequest(url, *args, **kargs):
+def quote_url(link):
+    link = urllib.parse.unquote(link)
+    scheme, netloc, path, query, fragment = urllib.parse.urlsplit(link)
+    path = urllib.parse.quote(path)
+    link = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment)).replace("%3A", ":")
+    return link
 
-    request = urllib.request.Request(url)
+def getrequest(url, *args, **kargs):
+    request = urllib.request.Request(quote_url(url))
     request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
     request.add_header('Pragma', 'no-cache')
     request.add_header('Cache-Control', 'max-age=0')
@@ -107,6 +114,8 @@ def download_real(url, output, addext = False):
         if master_times >= 5:
             print("Tried 5 times, giving up")
             break
+        elif master_times > 0:
+            print("Trying again (" + str(master_times) + "/5)")
         master_times += 1
 
         try:
