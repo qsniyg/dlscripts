@@ -74,7 +74,7 @@ def getsuffix(i, array):
         return ""
 
 def quote_url(link):
-    link = urllib.parse.unquote(link)
+    link = urllib.parse.unquote(link).strip()
     scheme, netloc, path, query, fragment = urllib.parse.urlsplit(link)
     path = urllib.parse.quote(path)
     link = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment)).replace("%3A", ":")
@@ -188,6 +188,9 @@ def download(pool, url, output, addext = False, cb = None):
 
 def check_image(url):
     try:
+        if os.stat(url).st_size == 0:
+            return False
+
         image = PIL.Image.open(url)
         if image.format == "JPEG":
             image.load()
@@ -197,6 +200,8 @@ def check_image(url):
     except:
         return False
 
+def check_video(url):
+    return os.stat(url).st_size != 0
 
 def download_image(pool, url, output, addext = False, *args, **kwargs):
     if not "total_times" in kwargs:
@@ -207,6 +212,9 @@ def download_image(pool, url, output, addext = False, *args, **kwargs):
 
     if not "lastcontent" in kwargs:
         kwargs["lastcontent"] = None
+
+    if not "func" in kwargs:
+        kwargs["func"] = check_image
 
     if kwargs["total_times"] >= 5 or kwargs["same_times"] >= 2:
         print("Tried downloading %s too many times, stopping" % url)
@@ -219,7 +227,7 @@ def download_image(pool, url, output, addext = False, *args, **kwargs):
             print(str(output) + " does not exist? (URL: %s)" % url)
             return
 
-        if check_image(output):
+        if kwargs["func"](output):
             return
 
         with open(output, "rb") as out_file:
@@ -235,6 +243,10 @@ def download_image(pool, url, output, addext = False, *args, **kwargs):
 
     download(pool, url, output, addext, download_image_inner)
 
+
+def download_video(pool, url, output, addext = False, *args, **kwargs):
+    kwargs["func"] = check_video
+    download_image(pool, url, output, addext, *args, **kwargs)
 
 
 def geturl(url):
@@ -406,13 +418,13 @@ if __name__ == "__main__":
                 else:
                     os.rename(thedirbase + file_, fullout)
 
-                print("Renamed image " + output +" (%i/%i)" % (our_id, all_entries))
+                print("[RN:IMAGE] " + output +" (%i/%i)" % (our_id, all_entries))
                 continue
 
             if image_exists(output, dirs):
                 continue
 
-            sys.stdout.write ("Downloading image " + output + " (%i/%i)... " % (our_id, all_entries))
+            sys.stdout.write("[DL:IMAGE] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
             if ext == "":
@@ -433,7 +445,7 @@ if __name__ == "__main__":
 
             suffix = getsuffix(i, entry["videos"])
 
-            url = video["video"]
+            url = quote_url(video["video"])
             mymatch = re.match(r".*twitter.com/i/videos/(?P<id>[0-9]*)", url)
             if mymatch:
                 url = "http://twitter.com/i/videos/tweet/%s" % mymatch.group("id")
@@ -450,7 +462,7 @@ if __name__ == "__main__":
             if exists:
                 continue
 
-            sys.stdout.write("Downloading video " + output + " (%i/%i)... " % (our_id, all_entries))
+            sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
             if jsond["config"]["generator"] == "instagram" or (".tistory.com/" in url) or url.endswith(".mp4"):
@@ -460,7 +472,7 @@ if __name__ == "__main__":
                 if file_exists(output, dirs):
                     continue
 
-                download(pool, url, fullout)
+                download_video(pool, url, fullout)
             else:
                 fullout = fullout + ".%(ext)s"
 
@@ -476,5 +488,5 @@ if __name__ == "__main__":
     if do_async:
         pool.wait_completion()
 
-    print("Done")
+    print("[FINAL] Done")
     sys.stdout.flush()
