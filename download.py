@@ -15,8 +15,21 @@ import queue
 import pprint
 import http.client
 import PIL.Image
+import magic
+
+thresh_processes = 4
+thresh_sleep_times = 5
+
+thresh_resume = 8
+thresh_same_resume = 3
+timeout_s = 30
 
 do_async = False
+lockfile = None
+no_lockfile = False
+
+has_errors = False
+error_files = []
 
 running = True
 def signal_handler(signal, frame):
@@ -35,7 +48,7 @@ class Worker(threading.Thread):
         self.start()
 
     def run(self):
-        while True:
+        while running:
             func, args, kargs = self.tasks.get()
             try:
                 func(*args, **kargs)
@@ -103,37 +116,62 @@ content_type_table = {
 }
 
 
-def download_real(url, output, addext = False):
+def download_real(url, output, options):
     if not running:
         return
 
+    if not options:
+        options = {
+            "addext": False,
+            "timeout": timeout_s
+        }
+
+    if "addext" not in options:
+        options["addext"] = False
+
+    if "timeout" not in options:
+        options["timeout"] = timeout_s
+
+    addext = options["addext"]
+    our_timeout = options["timeout"]
+
     retval = output
 
-    master_times = 0
-    while True:
+    master_times = 1
+    while running:
         if master_times >= 5:
             print("Tried 5 times, giving up")
             break
-        elif master_times > 0:
+        elif master_times > 1:
             print("Trying again (" + str(master_times) + "/5)")
         master_times += 1
+
+        finished = False
 
         try:
             if not addext:
                 with open(output, 'wb') as out_file:
                     content_length = -1
+                    old_length = -1
                     times = 0
-                    while True:
+                    same_length = 0
+                    strerr = ""
+                    while running:
+                        #if same_length > 0:
+                        #    print("Same length (" + str(same_length) + "/3)")
                         if times > 1:
-                            print("Resuming (" + str(times) + "/10)")
-                        if times == 10:
-                            print("Resumed 10 times, giving up")
+                            print("Resuming (" + str(times) + "/" + str(thresh_resume) + ")" + strerr)
+                        if same_length >= thresh_same_resume:
+                            print("Same length " + str(thresh_same_resume) + " times, giving up")
+                            break
+                        if times >= thresh_resume:
+                            print("Resumed " + str(thresh_resume) + " times, giving up")
                             break
 
                         times += 1
 
                         request = getrequest(url, start_range=out_file.tell(), end_range=content_length)
-                        with urllib.request.urlopen(request) as response:
+                        with urllib.request.urlopen(request, timeout=our_timeout) as response:
                             for header in response.headers._headers:
                                 if header[0].lower() == "content-length":
                                     content_length = int(header[1])
@@ -144,11 +182,21 @@ def download_real(url, output, addext = False):
                                 read_file = e.partial
 
                             out_file.write(read_file)
+                            out_file.flush()
 
                             if out_file.tell() >= content_length:
+                                finished = True
                                 break
+                            elif out_file.tell() == old_length:
+                                same_length += 1
+                                strerr = " (same length " + str(same_length) + "/" + str(thresh_same_resume) + ")"
+                            else:
+                                strerr = ""
+                                same_length = 0
+
+                            old_length = out_file.tell()
             else:
-                with urllib.request.urlopen(getrequest(url)) as response:
+                with urllib.request.urlopen(getrequest(url), timeout=our_timeout) as response:
                     data = response.read()
                     content_type = response.headers.get_content_type()
                     splitted = content_type.split("/")
@@ -162,8 +210,11 @@ def download_real(url, output, addext = False):
 
                     with open(output + "." + extension, "wb") as out_file:
                         out_file.write(data)
+
+                    finished = True
             #urllib.request.urlretrieve(url, filename=output)
-            break
+            if finished:
+                break
         except urllib.error.HTTPError as e:
             print(e)
             if e.code == 404 or e.code == 403:
@@ -175,16 +226,16 @@ def download_real(url, output, addext = False):
     return retval
 
 
-def download_real_cb(url, output, addext, cb):
-    retval = download_real(url, output, addext)
+def download_real_cb(url, output, options, cb):
+    retval = download_real(url, output, options)
     if cb:
         cb(retval)
 
-def download(pool, url, output, addext = False, cb = None):
+def download(pool, url, output, options = None, cb = None):
     if do_async:
-        pool.add_task(download_real_cb, url, output, addext, cb)
+        pool.add_task(download_real_cb, url, output, options, cb)
     else:
-        download_real_cb(url, output, addext, cb)
+        download_real_cb(url, output, options, cb)
 
 def check_image(url):
     try:
@@ -201,9 +252,20 @@ def check_image(url):
         return False
 
 def check_video(url):
-    return os.stat(url).st_size != 0
+    if os.stat(url).st_size == 0:
+        return False
 
-def download_image(pool, url, output, addext = False, *args, **kwargs):
+    our_magic = magic.from_file(url, mime=True)
+    if not our_magic:
+        return False
+
+    if our_magic.split("/")[0] != "video":
+        return False
+
+    return True
+
+def download_image(pool, url, output, options = None, *args, **kwargs):
+    global has_errors
     if not "total_times" in kwargs:
         kwargs["total_times"] = 0
 
@@ -218,13 +280,18 @@ def download_image(pool, url, output, addext = False, *args, **kwargs):
 
     if kwargs["total_times"] >= 5 or kwargs["same_times"] >= 2:
         print("Tried downloading %s too many times, stopping" % url)
+        has_errors = True
+        error_files.append(url)
         return
 
     kwargs["total_times"] += 1
 
     def download_image_inner(output):
+        global has_errors
         if not output or not os.path.exists(output):
             print(str(output) + " does not exist? (URL: %s)" % url)
+            has_errors = True
+            error_files.append(url)
             return
 
         if kwargs["func"](output):
@@ -239,14 +306,14 @@ def download_image(pool, url, output, addext = False, *args, **kwargs):
             kwargs["lastcontent"] = content
             kwargs["same_times"] = 0
 
-        download_image(pool, url, output, addext, *args, **kwargs)
+        download_image(pool, url, output, options, *args, **kwargs)
 
-    download(pool, url, output, addext, download_image_inner)
+    download(pool, url, output, options, download_image_inner)
 
 
-def download_video(pool, url, output, addext = False, *args, **kwargs):
+def download_video(pool, url, output, options = None, *args, **kwargs):
     kwargs["func"] = check_video
-    download_image(pool, url, output, addext, *args, **kwargs)
+    download_image(pool, url, output, options, *args, **kwargs)
 
 
 def geturl(url):
@@ -282,6 +349,27 @@ def image_exists(f, dirs):
             return True
     return False
 
+from subprocess import check_output
+def get_pid(name):
+    return check_output(["pgrep","-f",name]).split()
+import time
+
+def get_processes_amt():
+    dir = "/tmp/"
+    files = os.listdir(dir)
+    amt = 0
+    for file in files:
+        if file.startswith(".tdownload."):
+            process = file.split(".")[-1]
+            if not os.path.exists("/proc/" + process):
+                print("/tmp/" + file + " doesn't exist")
+                try:
+                    os.unlink("/tmp/" + file)
+                except Exception as e:
+                    print(e)
+            else:
+                amt += 1
+    return amt
 
 if __name__ == "__main__":
     myjson = sys.stdin.read()
@@ -289,6 +377,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1 and sys.argv[1] == "async":
         do_async = True
+        no_lockfile = True
 
         amt = 10
         if len(sys.argv) > 2:
@@ -297,6 +386,23 @@ if __name__ == "__main__":
         pool = ThreadPool(amt)
     else:
         pool = None
+
+    processes = get_processes_amt()
+    times = 0
+    while processes > thresh_processes and not no_lockfile and running:
+        time.sleep(2)
+        processes = get_processes_amt()
+        times += 1
+        if times > thresh_sleep_times:
+            no_lockfile = True
+            break
+
+    if not running:
+        sys.exit()
+
+    if not no_lockfile:
+        lockfile = "/tmp/.tdownload." + str(os.getpid())
+        open(lockfile, 'a').close()
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -428,9 +534,9 @@ if __name__ == "__main__":
             sys.stdout.flush()
 
             if ext == "":
-                download_image(pool, imageurl, fullout, True)
+                download_image(pool, imageurl, fullout, {"addext": True})
             else:
-                download_image(pool, imageurl, fullout, False)
+                download_image(pool, imageurl, fullout, {"addext": False})
             #print ("Downloaded image " + output + " (%i/%i)" % (our_id, all_entries))
             print("Done")
 
@@ -455,7 +561,7 @@ if __name__ == "__main__":
 
             exists = False
             for file_ in files:
-                if file_.startswith(output):
+                if file_.startswith(output) and check_video(os.path.join(thedir, file_)):
                     exists = True
                     break
 
@@ -465,7 +571,7 @@ if __name__ == "__main__":
             sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            if jsond["config"]["generator"] == "instagram" or (".tistory.com/" in url) or url.endswith(".mp4"):
+            if jsond["config"]["generator"] == "instagram" or url.endswith(".mp4"):
                 fullout = fullout + ".mp4"
 
                 #if os.path.exists(fullout):
@@ -488,5 +594,16 @@ if __name__ == "__main__":
     if do_async:
         pool.wait_completion()
 
-    print("[FINAL] Done")
+    if lockfile:
+        try:
+            os.unlink(lockfile)
+        except Exception as e:
+            print(e)
+
+    if not has_errors:
+        print("[FINAL] Done")
+    else:
+        print("[FINAL,ERRORS] Done:")
+        pprint.pprint(error_files)
+
     sys.stdout.flush()

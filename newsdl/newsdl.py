@@ -101,7 +101,11 @@ def main():
         sys.stderr.write("no recognizable date\n")
         return
 
-    date = parse(datetag[0].text.replace("오후", ""))
+
+    for date_tag in datetag:
+        if not "오후" in date_tag.text:
+            continue
+        date = parse(date_tag.text.replace("오후", ""))
 
     album = "[" + str(date.year)[-2:] + str(date.month).zfill(2) + str(date.day).zfill(2) + "] " + title
 
