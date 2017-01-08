@@ -17,8 +17,8 @@ import http.client
 import PIL.Image
 import magic
 
-thresh_processes = 4
-thresh_sleep_times = 5
+thresh_processes = 3
+thresh_sleep_times = 20
 
 thresh_resume = 8
 thresh_same_resume = 3
@@ -255,11 +255,14 @@ def check_video(url):
     if os.stat(url).st_size == 0:
         return False
 
+    if url.endswith(".part"):
+        return False
+
     our_magic = magic.from_file(url, mime=True)
     if not our_magic:
         return False
 
-    if our_magic.split("/")[0] != "video":
+    if our_magic.split("/")[0] != "video" and our_magic != "application/x-shockwave-flash":
         return False
 
     return True
