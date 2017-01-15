@@ -61,7 +61,8 @@ if __name__ == "__main__":
             "#masonry ul li.box > a",
             "#content .entry_slist ol li > a",
             "#content #content-inner .list ul li > a",
-            "#result li > a"
+            "#result li > a",
+            "ul.list_search li > a"
         ]
 
         parenttag = None
