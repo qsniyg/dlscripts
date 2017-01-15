@@ -60,7 +60,8 @@ if __name__ == "__main__":
             "ol.article_post li a",
             "#masonry ul li.box > a",
             "#content .entry_slist ol li > a",
-            "#content #content-inner .list ul li > a"
+            "#content #content-inner .list ul li > a",
+            "#result li > a"
         ]
 
         parenttag = None
