@@ -122,7 +122,8 @@ if __name__ == "__main__":
             ".entry .article",
             ".article_post",
             "#content",
-            "#mArticle"
+            "#mArticle",
+            "article"
         ]
 
         for selector in article_selectors:
