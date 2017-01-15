@@ -62,7 +62,8 @@ if __name__ == "__main__":
             "#content .entry_slist ol li > a",
             "#content #content-inner .list ul li > a",
             "#result li > a",
-            "ul.list_search li > a"
+            "ul.list_search li > a",
+            ".list_wrap div.article_skin div.list_content a"
         ]
 
         parenttag = None
