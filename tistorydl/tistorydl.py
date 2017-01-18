@@ -48,7 +48,7 @@ if __name__ == "__main__":
     #soup = bs4.BeautifulSoup(data, 'lxml')
 
     articles = []
-    if "/tag/" in url or "/search/" in url or "/category/" in url:
+    if "/tag" in url or "/search" in url or "/category" in url or url.endswith("tistory.com") or url.endswith("tistory.com/"):
         sys.stderr.write("Listing... ")
         data = download(url)
         soup = bs4.BeautifulSoup(data, 'lxml')
