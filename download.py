@@ -333,18 +333,19 @@ def geturl(url):
     except Exception as e:
         print(e)
 
+def sanitize_path(text):
+    if windows_path:
+        return text.rstrip(".")
+    return text
 
 def fsify_base(text):
-    ret = text.replace("\n", " ").replace("\r", " ").replace("/", " (slash) ")
-    if windows_path:
-        ret = ret.rstrip(".")
-    return ret
+    return sanitize_path(text.replace("\n", " ").replace("\r", " ").replace("/", " (slash) "))
 
 def old_fsify(text):
-    return fsify_base(text)[:50]
+    return sanitize_path(fsify_base(text)[:50])
 
 def fsify_album(text):
-    return fsify_base(text)[:100].strip()
+    return sanitize_path(fsify_base(text)[:100].strip())
 
 def getdirs(base):
     return [x[0] for x in os.walk(base)]
