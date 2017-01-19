@@ -335,7 +335,7 @@ def geturl(url):
 
 def sanitize_path(text):
     if windows_path:
-        return text.rstrip(".")
+        return text.rstrip(".").rstrip(" ")
     return text
 
 def fsify_base(text):
