@@ -16,6 +16,8 @@ import pprint
 import http.client
 import PIL.Image
 import magic
+sys.path.append(".")
+import util
 
 thresh_processes = 3
 thresh_sleep_times = 20
@@ -412,10 +414,13 @@ if __name__ == "__main__":
     jsond = json.loads(myjson)
     #print(jsond)
 
-    home = os.path.expanduser("~")
+    prefix = "~/Pictures/social/"
+    if "prefix" in util.tokens:
+        prefix = util.tokens["prefix"]
+    home = os.path.expanduser(prefix)
 
     generator = jsond["config"]["generator"]
-    thedirbase = home + "/Pictures/social/" + generator + "/" + jsond["author"] + "/"
+    thedirbase = home + "/" + generator + "/" + jsond["author"] + "/"
 
     if not os.path.exists(thedirbase):
         os.makedirs(thedirbase, exist_ok=True)
