@@ -19,6 +19,10 @@ import magic
 sys.path.append(".")
 import util
 
+windows_path = False
+if "windows" in util.tokens and util.tokens["windows"] == 1:
+    windows_path = True
+
 thresh_processes = 3
 thresh_sleep_times = 20
 
@@ -331,7 +335,10 @@ def geturl(url):
 
 
 def fsify_base(text):
-    return text.replace("\n", " ").replace("\r", " ").replace("/", " (slash) ")
+    ret = text.replace("\n", " ").replace("\r", " ").replace("/", " (slash) ")
+    if windows_path:
+        ret = ret.rstrip(".")
+    return ret
 
 def old_fsify(text):
     return fsify_base(text)[:50]
