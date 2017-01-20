@@ -7,7 +7,6 @@ import re
 import html
 import pprint
 
-
 def quote_url(link):
     link = urllib.parse.unquote(link).strip()
     scheme, netloc, path, query, fragment = urllib.parse.urlsplit(link)
@@ -105,7 +104,7 @@ def main():
 
         myjson["entries"].append({
             "caption": title,
-            "album": album,
+            #"album": album,
             "date": date,
             "author": author,
             "images": images,
