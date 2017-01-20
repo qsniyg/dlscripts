@@ -76,7 +76,9 @@ if __name__ == "__main__":
                 break
 
         for a in parenttag:
-            articles.append(urllib.parse.urljoin(url, a["href"]))
+            article = urllib.parse.urljoin(url, a["href"])
+            if article not in articles:
+                articles.append(article)
 
         sys.stderr.write("done\n")
     else:
