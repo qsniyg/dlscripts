@@ -65,7 +65,8 @@ if __name__ == "__main__":
             "ul.list_search li > a",
             ".list_wrap div.article_skin div.list_content a",
             ".gallery_ul li.grid-item > a",
-            "section div.fixed_img_col ul li > a"
+            "section div.fixed_img_col ul li > a",
+            "#entire > #contents > .list > ol > li > a"
         ]
 
         parenttag = None
@@ -130,7 +131,8 @@ if __name__ == "__main__":
             ".article_post",
             "#content",
             "#mArticle",
-            "#article"
+            "#article",
+            "#entire > #contents > .post"
         ]
 
         for selector in article_selectors:
