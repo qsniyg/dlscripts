@@ -122,6 +122,13 @@ content_type_table = {
 }
 
 
+def fix_tumblr(x):
+    if ".media.tumblr.com" in x:
+       return re.sub("(.*)//[0-9]*(.media.tumblr.com/.*)", "\\1//68\\2", x)
+
+    return x
+
+
 def download_real(url, output, options):
     if not running:
         return
@@ -150,6 +157,7 @@ def download_real(url, output, options):
             break
         elif master_times > 1:
             print("Trying again (" + str(master_times) + "/5)")
+            url = fix_tumblr(url)
         master_times += 1
 
         finished = False
@@ -275,6 +283,10 @@ def check_video(url):
 
 def download_image(pool, url, output, options = None, *args, **kwargs):
     global has_errors
+
+    if not running:
+        return
+
     if not "total_times" in kwargs:
         kwargs["total_times"] = 0
 
