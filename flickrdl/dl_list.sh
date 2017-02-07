@@ -2,6 +2,8 @@
 
 USER="$@"
 
+cd "`dirname "$0"`"
+
 if [ ! -e "$USER"_list.json ]; then
     echo "No list for $USER .. will download (press ENTER)"
     read
