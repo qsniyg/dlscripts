@@ -2,7 +2,8 @@ import flickrapi
 import pprint
 import ujson
 import sys
-sys.path.append("..")
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import util
 import re
 

@@ -6,6 +6,7 @@ import util
 import urllib.request
 from dateutil.parser import parse
 import googleapiclient.discovery
+from oauth2client.client import GoogleCredentials
 from pprint import pprint
 
 api_key = util.tokens["blogger_key"]
@@ -14,7 +15,12 @@ api_key = util.tokens["blogger_key"]
 if __name__ == "__main__":
     url = sys.argv[1]
 
-    service = googleapiclient.discovery.build('blogger', 'v3', developerKey=api_key)
+    once = False
+    if len(sys.argv) > 2 and sys.argv[2] == "once":
+        once = True
+
+    service = googleapiclient.discovery.build('blogger', 'v3',
+                                              developerKey=api_key)
 
     blogsapi = service.blogs()
     blog = blogsapi.getByUrl(url=url, view="READER").execute()
@@ -60,7 +66,8 @@ if __name__ == "__main__":
             myjson["entries"].append({
                 "caption": caption,
                 "album": album,
-                "author": author,
+                #"author": author,
+                "author": blog["name"],
                 "date": date,
                 "images": images,
                 "videos": []
@@ -68,6 +75,8 @@ if __name__ == "__main__":
 
         sys.stderr.write("\r" + str(len(myjson["entries"])) + " / " + str(blog["posts"]["totalItems"]))
 
+        if once:
+            break
         #posts_req = None
         posts_req = postsapi.list_next(posts_req, posts)
 

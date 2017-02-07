@@ -30,6 +30,10 @@ username="tiara_pics"
 if len(sys.argv) > 1:
     username = sys.argv[1]
 
+once = False
+if len(sys.argv) > 2 and sys.argv[2] == "once":
+    once = True
+
 api = tweepy.API(auth)
 
 user_info = api.get_user(id=username)
@@ -48,6 +52,9 @@ while True:
     maxid = tl[-1].id - 1
 
     sys.stderr.write("\r" + str(len(all_tl)) + " / " + str(user_info.statuses_count))
+
+    if once:
+        break
 
 sys.stderr.write("\n")
 
