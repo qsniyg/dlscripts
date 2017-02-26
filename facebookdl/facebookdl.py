@@ -63,7 +63,7 @@ for album in all_albums:
     try:
         photos = graph.get_connections(album["id"], "photos?limit=100")
     except facebook.GraphAPIError as e:
-        sys.stderr.write("Skipping " + albumname + " " + str(e.reason) + "\n")
+        sys.stderr.write("Skipping " + albumname + " (" + album["id"] + ") " + str(e) + "\n")
         continue
 
     pagecnt = 0

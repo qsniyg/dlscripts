@@ -6,7 +6,10 @@ if (count($argv) > 1) {
     $targetusername = $argv[1];
 }
 
-$instagram = new \InstagramAPI\Instagram($username, $password);
+#$instagram = new \InstagramAPI\Instagram($username, $password);
+$debug = false;
+$instagram = new \InstagramAPI\Instagram($debug);
+$instagram->setUser($username, $password);
 
 try {
     $instagram->login();
@@ -18,7 +21,7 @@ try {
 $usernameid = $instagram->getUsernameId($targetusername);
 
 $usernameinfo = $instagram->getUsernameInfo($usernameid);
-$count = $usernameinfo->getMediaCount();
+$count = $usernameinfo->user->media_count;
 
 # Get all items
 $maxid = null;
@@ -26,8 +29,9 @@ $allitems = array();
 
 while (true) {
     $feed = $instagram->getUserFeed($usernameid, $maxid);
-    $items = $feed->getItems();
-    $maxid = end($items)->getMediaId();
+    $items = $feed->items;
+    //$maxid = end($items)->getMediaId();
+    $maxid = $feed->getNextMaxId();
     $allitems = array_merge($allitems, $items);
 
     fwrite(STDERR, "\r" . count($allitems) . " / " . $count);
@@ -58,15 +62,15 @@ foreach ($allitems as $i => $item) {
         "original_width" => $item->getOriginalWidth(),
         "original_height" => $item->getOriginalHeight(),
 
-        "caption_edited" => $item->isCaptionEdited(),
+        "caption_edited" => $item->caption_is_edited(),
 
         "has_audio" => $item->hasAudio(),
         "duration" => $item->getVideoDuration(),
 
         "filter_type" => $item->getFilterType(),
 
-        "is_video" => $item->isVideo(),
-        "is_photo" => $item->isPhoto(),
+        "is_video" => $item->video_versions != null,
+        "is_photo" => $item->video_versions == null,
 
         "images" => array(),
         "videos" => array()
@@ -80,7 +84,7 @@ foreach ($allitems as $i => $item) {
         $myobj["caption"] = "";
     }
 
-    foreach ($item->getImageVersions() as $image) {
+    foreach ($item->image_versions2->candidates as $image) {
         $imageobj = array(
             "url" => $image->getUrl(),
             "width" => $image->getWidth(),
