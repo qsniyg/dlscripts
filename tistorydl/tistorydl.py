@@ -66,7 +66,8 @@ if __name__ == "__main__":
             ".list_wrap div.article_skin div.list_content a",
             ".gallery_ul li.grid-item > a",
             "section div.fixed_img_col ul li > a",
-            "#entire > #contents > .list > ol > li > a"
+            "#entire > #contents > .list > ol > li > a",
+            "#mArticle > .list_content > a"
         ]
 
         parenttag = None

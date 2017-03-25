@@ -31,5 +31,5 @@ do
         fi
     fi
 
-    cat "$USER""@S:""$ID".json | python ../download.py
+    cat "$USER""@S:""$ID".json | python ../download.py async
 done
