@@ -124,9 +124,9 @@ def get_images(myjson, soup):
         "#articleContent #img img",
         "#newsContent img.article-photo-mtn",
         "#article_content img",
-        "*[itemprop='articleBody'] img",
-        "*[itemprop='articleBody'] img.news1_photo",
-        "*[itemprop='articleBody'] *[rel='prettyPhoto'] img",
+        "div[itemprop='articleBody'] img",
+        "div[itemprop='articleBody'] img.news1_photo",
+        "div[itemprop='articleBody'] div[rel='prettyPhoto'] img",
         "div[itemprop='articleBody'] .centerimg img",
         "div[itemprop='articleBody'] .center_image img",
         ".center_image > img",
@@ -301,6 +301,9 @@ def do_url(url):
     if articles is not None:
         article_i = 1
         for article in articles:
+            if article is None:
+                sys.stderr.write("error with article\n")
+                continue
             if quick:
                 if not article["caption"] or article["date"] == 0:
                     sys.stderr.write("no salvageable information from search\n")
@@ -321,17 +324,21 @@ def do_url(url):
             sys.stderr.write(basetext + "Downloading %s... " % article_url)
             sys.stderr.flush()
 
-            newjson = do_url(article_url)
+            newjson = None
+            try:
+                newjson = do_url(article_url)
+            except Exception as e:
+                pass
             if not newjson:
                 sys.stderr.write("url: " + article_url + " is invalid\n")
-                return None
+                continue
 
             if newjson["author"] != myjson["author"]:
                 sys.stderr.write("current:\n\n" +
                                  pprint.pformat(myjson) +
                                  "\n\nnew:\n\n" +
                                  pprint.pformat(newjson))
-                return None
+                continue
 
             sys.stderr.write("done\n")
             sys.stderr.flush()
@@ -373,6 +380,9 @@ def do_url(url):
 
 def main():
     url = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == "full":
+        global quick
+        quick = False
     myjson = do_url(url)
     print(ujson.dumps(myjson))
 
