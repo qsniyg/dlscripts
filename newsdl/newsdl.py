@@ -166,8 +166,15 @@ def get_images(myjson, soup):
     return images
 
 
-def get_search(myjson, soup):
-    return
+def get_description(myjson, soup):
+    desc_tag = get_selector(soup, [
+        "#article_content #adiContents"
+    ])
+
+    if not desc_tag:
+        return
+
+    return "\n".join(list(desc_tag[0].strings))
 
 
 def get_article_url(url):
@@ -193,7 +200,8 @@ def get_articles(myjson, soup):
             "link": "dt a",
             "caption": "dt a",
             "date": "dt .date",
-            "images": ".photo img"
+            "images": ".photo img",
+            "description": "dd.s_read_cr"
         },
         {
             "parent": "#search_contents .bd ul li dl",
@@ -223,7 +231,7 @@ def get_articles(myjson, soup):
         return []
 
     for a in parenttag:
-        link = get_article_url(a.select(selector["link"])[0]["href"])
+        link = get_article_url(urllib.parse.urljoin(myjson["url"], a.select(selector["link"])[0]["href"]))
 
         date = 0
         if "date" in selector:
@@ -239,6 +247,10 @@ def get_articles(myjson, soup):
         if "caption" in selector:
             caption = a.select(selector["caption"])[0].text
 
+        description = None
+        if "description" in selector:
+            description = a.select(selector["description"])[0].text
+
         author = get_author(link)
 
         images = []
@@ -251,6 +263,7 @@ def get_articles(myjson, soup):
             "url": link,
             "date": date,
             "caption": caption,
+            "description": description,
             "author": author,
             "images": images,
             "videos": []
@@ -365,8 +378,13 @@ def do_url(url):
         sys.stderr.write("no images\n")
         return
 
+    description = get_description(myjson, soup)
+    if not description:
+        sys.stderr.write("no description\n")
+
     myjson["entries"].append({
         "caption": title,
+        "description": description,
         "album": album,
         "url": url,
         "date": date,

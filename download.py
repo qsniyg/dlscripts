@@ -30,6 +30,7 @@ thresh_resume = 8
 thresh_same_resume = 3
 timeout_s = 30
 
+overwrite = False
 do_async = False
 lockfile = None
 no_lockfile = False
@@ -101,10 +102,11 @@ def quote_url(link):
 
 def getrequest(url, *args, **kargs):
     request = urllib.request.Request(quote_url(url))
-    request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
-    request.add_header('Pragma', 'no-cache')
-    request.add_header('Cache-Control', 'max-age=0')
-    request.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
+    if ".photobucket.com" not in url:
+        request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
+        request.add_header('Pragma', 'no-cache')
+        request.add_header('Cache-Control', 'max-age=0')
+        request.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
     if "end_range" in kargs and kargs["end_range"] > 0:
         request.add_header('Range', 'bytes=%s-%s' % (kargs["start_range"], kargs["end_range"]))
     return request
@@ -400,6 +402,10 @@ if __name__ == "__main__":
     myjson = sys.stdin.read()
     sys.stdin.close()
 
+    if len(sys.argv) > 1 and sys.argv[1] == "overwrite":
+        overwrite = True
+        sys.argv = sys.argv[1:]
+
     if len(sys.argv) > 1 and sys.argv[1] == "async":
         do_async = True
         no_lockfile = True
@@ -528,7 +534,7 @@ if __name__ == "__main__":
                     break
 
 
-            if exists:
+            if exists and not overwrite:
                 continue
 
             #if os.path.exists(fullout):
@@ -540,22 +546,30 @@ if __name__ == "__main__":
                     exists = True
                     break
 
+            renamed = False
             if exists:
                 if not ext:
                     ext = getext(thedirbase + file_)
 
                     if ext:
-                        os.rename(thedirbase + file_, fullout + "." + ext)
+                        if thedirbase + file_ != fullout + "." + ext:
+                            os.rename(thedirbase + file_, fullout + "." + ext)
+                            renamed = True
                     else:
-                        os.rename(thedirbase + file_, fullout)
-                        print("WARNING: no extension for " + file_)
+                        if thedirbase + file_ != fullout:
+                            os.rename(thedirbase + file_, fullout)
+                            renamed = True
+                            print("WARNING: no extension for " + file_)
                 else:
-                    os.rename(thedirbase + file_, fullout)
+                    if thedirbase + file_ != fullout:
+                        os.rename(thedirbase + file_, fullout)
+                        renamed = True
 
-                print("[RN:IMAGE] " + output +" (%i/%i)" % (our_id, all_entries))
-                continue
+                if renamed:
+                    print("[RN:IMAGE] " + output +" (%i/%i)" % (our_id, all_entries))
+                    continue
 
-            if image_exists(output, dirs):
+            if image_exists(output, dirs) and not overwrite:
                 continue
 
             sys.stdout.write("[DL:IMAGE] " + output + " (%i/%i)... " % (our_id, all_entries))
@@ -593,7 +607,7 @@ if __name__ == "__main__":
                     exists = True
                     break
 
-            if exists:
+            if exists and not overwrite:
                 continue
 
             sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
