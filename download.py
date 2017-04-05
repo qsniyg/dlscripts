@@ -79,13 +79,29 @@ class ThreadPool:
         self.tasks.join()
 
 
-def getext(url):
-    match = re.match(r"[^?]*\.(?P<ext>[^?/:]*)(:[^?/]*)?$", url)
+def getext(urls):
+    origtype = type(urls)
+    if origtype not in [list, tuple]:
+        urls = [urls]
 
-    if not match:
+    ret = []
+
+    for url in urls:
+        match = re.match(r"[^?]*\.(?P<ext>[^?/:]*)(:[^?/]*)?$", url)
+
+        if not match:
+            ret.append(None)
+            continue
+
+        ret.append(match.group("ext"))
+
+    if origtype not in [list, tuple]:
+        return ret[0]
+    else:
+        for ext in ret:
+            if ext:
+                return ret
         return None
-
-    return match.group("ext")
 
 def getsuffix(i, array):
     if len(array) > 1:
@@ -165,6 +181,80 @@ def download_real(url, output, options):
         finished = False
 
         try:
+            #with open(output, 'wb') as out_file:
+            out_file = None
+            content_length = -1
+            old_length = -1
+            times = 0
+            same_length = 0
+            strerr = ""
+            while running:
+                #if same_length > 0:
+                #    print("Same length (" + str(same_length) + "/3)")
+                if times > 1:
+                    print("Resuming (" + str(times) + "/" + str(thresh_resume) + ")" + strerr)
+                if same_length >= thresh_same_resume:
+                    print("Same length " + str(thresh_same_resume) + " times, giving up")
+                    break
+                if times >= thresh_resume:
+                    print("Resumed " + str(thresh_resume) + " times, giving up")
+                    break
+
+                times += 1
+
+                start_r = 0
+                if out_file:
+                    start_r = out_file.tell()
+
+                request = getrequest(url, start_range=start_r, end_range=content_length)
+                with urllib.request.urlopen(request, timeout=our_timeout) as response:
+                    for header in response.headers._headers:
+                        if header[0].lower() == "content-length":
+                            content_length = int(header[1])
+
+                    content_type = response.headers.get_content_type()
+                    splitted = content_type.split("/")
+
+                    if content_type in content_type_table:
+                        extension = content_type_table[content_type]
+                    elif content_type != "text/plain" and content_type != response.headers.get_default_type():
+                        extension = splitted[1]
+                    elif addext:
+                        extension = addext
+                    else:
+                        print("WARNING: no extension")
+                        extension = ""
+
+                    retval = output + "." + extension
+
+                    if not out_file:
+                        out_file = open(output + "." + extension, "wb")
+
+                    try:
+                        read_file = response.read()
+                    except http.client.IncompleteRead as e:
+                        read_file = e.partial
+
+                    out_file.write(read_file)
+                    out_file.flush()
+
+                    if out_file.tell() >= content_length:
+                        finished = True
+                        break
+                    elif out_file.tell() == old_length:
+                        same_length += 1
+                        strerr = " (same length " + str(same_length) + "/" + str(thresh_same_resume) + ")"
+                    else:
+                        strerr = ""
+                        same_length = 0
+
+                    old_length = out_file.tell()
+            if out_file:
+                out_file.close()
+                break
+
+            break
+
             if not addext:
                 with open(output, 'wb') as out_file:
                     content_length = -1
@@ -518,13 +608,14 @@ if __name__ == "__main__":
             ext = getext(imageurl)
 
             if ext:
-                ext = "." + ext
+                dotext = "." + ext
             else:
-                ext = ""
+                dotext = ""
 
             suffix = getsuffix(i, entry["images"])
 
-            output = "(%s)%s%s%s" % (newdate, newcaption, suffix, ext)
+            #output = "(%s)%s%s%s" % (newdate, newcaption, suffix, dotext)
+            output = "(%s)%s%s" % (newdate, newcaption, suffix)
             fullout = thedir + output
 
             exists = False
@@ -548,12 +639,11 @@ if __name__ == "__main__":
 
             renamed = False
             if exists:
-                if not ext:
-                    ext = getext(thedirbase + file_)
-
-                    if ext:
-                        if thedirbase + file_ != fullout + "." + ext:
-                            os.rename(thedirbase + file_, fullout + "." + ext)
+                oext = getext(thedirbase + file_)
+                if not ext or True: # hackish
+                    if oext:
+                        if thedirbase + file_ != fullout + "." + oext:
+                            os.rename(thedirbase + file_, fullout + "." + oext)
                             renamed = True
                     else:
                         if thedirbase + file_ != fullout:
@@ -575,10 +665,11 @@ if __name__ == "__main__":
             sys.stdout.write("[DL:IMAGE] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            if ext == "":
-                download_image(pool, imageurl, fullout, {"addext": True})
-            else:
-                download_image(pool, imageurl, fullout, {"addext": False})
+            download_image(pool, imageurl, fullout, {"addext": ext})
+            ##if ext == "":
+            ##    download_image(pool, imageurl, fullout, {"addext": True})
+            ##else:
+            ##    download_image(pool, imageurl, fullout, {"addext": False})
             #print ("Downloaded image " + output + " (%i/%i)" % (our_id, all_entries))
             print("Done")
 
