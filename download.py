@@ -164,6 +164,13 @@ def download_real(url, output, options):
         options["timeout"] = timeout_s
 
     addext = options["addext"]
+
+    if type(addext) in [list, tuple]:
+        if len(addext) > 0:
+            addext = addext[0]
+        else:
+            addext = False
+
     our_timeout = options["timeout"]
 
     retval = output
@@ -379,6 +386,9 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
     if not running:
         return
 
+    if not "url_id" in kwargs:
+        kwargs["url_id"] = 0
+
     if not "total_times" in kwargs:
         kwargs["total_times"] = 0
 
@@ -392,17 +402,46 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
         kwargs["func"] = check_image
 
     if kwargs["total_times"] >= 5 or kwargs["same_times"] >= 2:
-        print("Tried downloading %s too many times, stopping" % url)
+        if type(url) in [list, tuple] and len(url) > (kwargs["url_id"] + 1):
+            print("Tried downloading %s too many times, going to next url" % url["url_id"])
+            kwargs["url_id"] += 1
+            kwargs["total_times"] = 0
+            kwargs["same_times"] = 0
+            kwargs["lastcontent"] = None
+
+            if type(options) == dict and "addext" in options and type(options["addext"]) in [list, tuple]:
+                options["addext"] = options["addext"][1:]
+
+            download_image(pool, url, output, options, *args, **kwargs)
+            return
+
+        print("Tried downloading %s too many times, stopping" % url["url_id"])
         has_errors = True
         error_files.append(url)
         return
 
     kwargs["total_times"] += 1
 
+    oldoutput = output
+
     def download_image_inner(output):
         global has_errors
         if not output or not os.path.exists(output):
             print(str(output) + " does not exist? (URL: %s)" % url)
+
+            if type(url) in [list, tuple] and len(url) > (kwargs["url_id"] + 1):
+                print("Trying next url")
+                kwargs["url_id"] += 1
+                kwargs["total_times"] = 0
+                kwargs["same_times"] = 0
+                kwargs["lastcontent"] = None
+
+                if type(options) == dict and "addext" in options and type(options["addext"]) in [list, tuple]:
+                    options["addext"] = options["addext"][1:]
+
+                download_image(pool, url, oldoutput, options, *args, **kwargs)
+                return
+
             has_errors = True
             error_files.append(url)
             return
@@ -421,7 +460,11 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
 
         download_image(pool, url, output, options, *args, **kwargs)
 
-    download(pool, url, output, options, download_image_inner)
+    newurl = url
+    if type(newurl) in [list, tuple]:
+        newurl = url[kwargs["url_id"]]
+
+    download(pool, newurl, output, options, download_image_inner)
 
 
 def download_video(pool, url, output, options = None, *args, **kwargs):
@@ -607,10 +650,10 @@ if __name__ == "__main__":
 
             ext = getext(imageurl)
 
-            if ext:
-                dotext = "." + ext
-            else:
-                dotext = ""
+            ##if ext:
+            ##    dotext = "." + ext
+            ##else:
+            ##    dotext = ""
 
             suffix = getsuffix(i, entry["images"])
 
@@ -623,7 +666,6 @@ if __name__ == "__main__":
                 if file_.startswith(output) and check_image(os.path.join(thedir, file_)):
                     exists = True
                     break
-
 
             if exists and not overwrite:
                 continue
