@@ -16,6 +16,8 @@ import pprint
 import http.client
 import PIL.Image
 import magic
+import hashlib
+import binascii
 sys.path.append(".")
 import util
 
@@ -38,6 +40,8 @@ no_lockfile = False
 
 has_errors = False
 error_files = []
+
+similar_queue = []
 
 running = True
 def signal_handler(signal, frame):
@@ -139,6 +143,29 @@ content_type_table = {
     "video/x-ms-wmv": "wmv",
     "video/x-msvideo": "avi"
 }
+
+
+# http://stackoverflow.com/a/3431838
+def md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
+def crc32(fname):
+    with open(fname, "rb") as f:
+        crc = binascii.crc32(f.read()) & 0xffffffff
+    return crc
+
+
+def get_file_hash(fname):
+    return [md5(fname), crc32(fname)]
+
+
+def cmp_file_hash(hash1, hash2):
+    return hash1[0] == hash2[0] and hash1[1] == hash2[1]
 
 
 def fix_tumblr(x):
@@ -274,6 +301,23 @@ def download_real(url, output, options):
         except Exception as e:
             print(e)
 
+    if len(options["similar"]) > 0:
+        ourcrc = crc32(retval)
+        ourmd5 = None
+
+        for similar in options["similar"]:
+            similarcrc = crc32(similar)
+
+            if ourcrc == similarcrc:
+                if not ourmd5:
+                    ourmd5 = md5(retval)
+
+                similarmd5 = md5(similar)
+
+                if ourmd5 == similarmd5:
+                    global similar_queue
+                    similar_queue.append(similar)
+
     return retval
 
 
@@ -341,7 +385,7 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
 
     if kwargs["total_times"] >= 5 or kwargs["same_times"] >= 2:
         if type(url) in [list, tuple] and len(url) > (kwargs["url_id"] + 1):
-            print("Tried downloading %s too many times, going to next url" % url["url_id"])
+            print("Tried downloading %s too many times, going to next url" % url[kwargs["url_id"]])
             kwargs["url_id"] += 1
             kwargs["total_times"] = 0
             kwargs["same_times"] = 0
@@ -353,7 +397,7 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
             download_image(pool, url, output, options, *args, **kwargs)
             return
 
-        print("Tried downloading %s too many times, stopping" % url["url_id"])
+        print("Tried downloading %s too many times, stopping" % str(url))
         has_errors = True
         error_files.append(url)
         return
@@ -423,6 +467,13 @@ def sanitize_path(text):
         return text.rstrip(".").rstrip(" ")
     return text
 
+def remext(file1):
+    return re.sub(r"\.[^. ]*$", "", file1)
+    #return os.path.splitext(file1)[0]
+
+def similar_filename(file1, file2):
+    return os.path.basename(remext(file1)) == os.path.basename(file2) # hack!!
+
 def fsify_base(text):
     return sanitize_path(text.replace("\n", " ").replace("\r", " ").replace("/", " (slash) "))
 
@@ -432,19 +483,34 @@ def old_fsify(text):
 def fsify_album(text):
     return sanitize_path(fsify_base(text)[:100].strip())
 
+def sanitize_caption(entry_caption, entry):
+    authorcaption = ""
+    if "author" in entry and entry["author"] != jsond["author"]:
+        authorcaption = "[@" + entry["author"] + "] "
+
+    if not entry_caption or len(entry_caption) == 0:
+        newcaption = ""
+    else:
+        #oldcaption = " " + old_fsify(entry_caption)
+        newcaption = " " + authorcaption + old_fsify(entry_caption)
+
+    return newcaption
+
 def getdirs(base):
     return [x[0] for x in os.walk(base)]
 
 def file_exists(f, dirs):
     for d in dirs:
-        if os.path.exists(os.path.join(d, f)):
-            return True
+        for i in os.listdir(d):
+            if similar_filename(i, f):
+                return True
     return False
 
 def image_exists(f, dirs):
     for d in dirs:
-        if os.path.exists(os.path.join(d, f)) and check_image(os.path.join(d, f)):
-            return True
+        for i in os.listdir(d):
+            if similar_filename(i, f) and check_image(os.path.join(d, i)):
+                return True
     return False
 
 from subprocess import check_output
@@ -605,23 +671,35 @@ if __name__ == "__main__":
 
             #output = "(%s)%s%s%s" % (newdate, newcaption, suffix, dotext)
             output = "(%s)%s%s" % (newdate, newcaption, suffix)
+
+            similaroutput = None
+            if "similarcaption" in entry:
+                newsimilarcaption = sanitize_caption(entry["similarcaption"], entry)
+                similaroutput = "(%s)%s%s" % (newdate, newsimilarcaption, suffix)
+
             fullout = thedir + output
 
             exists = False
             for file_ in files:
-                if file_.startswith(output) and check_image(os.path.join(thedir, file_)):
+                if similar_filename(file_, output) and check_image(os.path.join(thedir, file_)):
                     exists = True
                     break
 
             if exists and not overwrite:
                 continue
 
+            similar = []
+            if similaroutput:
+                for file_ in files:
+                    if similar_filename(file_, similaroutput) and check_image(os.path.join(thedir, file_)):
+                        similar.append(os.path.join(thedir, file_))
+
             #if os.path.exists(fullout):
             #    continue
 
             exists = False
             for file_ in filesbase:
-                if file_.startswith(output) and check_image(os.path.join(thedirbase, file_)):
+                if similar_filename(file_, output) and check_image(os.path.join(thedirbase, file_)):
                     exists = True
                     break
 
@@ -653,7 +731,11 @@ if __name__ == "__main__":
             sys.stdout.write("[DL:IMAGE] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            download_image(pool, imageurl, fullout, {"addext": ext})
+            download_options = {
+                "addext": ext,
+                "similar": similar
+            }
+            download_image(pool, imageurl, fullout, download_options)
             ##if ext == "":
             ##    download_image(pool, imageurl, fullout, {"addext": True})
             ##else:
@@ -714,6 +796,18 @@ if __name__ == "__main__":
 
     if do_async:
         pool.wait_completion()
+
+    our_id = 1
+    all_entries = len(similar_queue)
+    for similar_file in similar_queue:
+        sys.stdout.write("[SIMILAR] Removing " + os.path.basename(similar_file) + " (%i/%i) ... " % (our_id, all_entries))
+        our_id += 1
+        sys.stdout.flush()
+        try:
+            os.remove(similar_file)
+        except Exception as e:
+            print(e)
+        print("Done")
 
     if lockfile:
         try:

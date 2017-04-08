@@ -153,8 +153,11 @@ def build_photo_url(photo):
 
 #photos = photos_api["photos"]["photo"]
 for photo in photos:
+    newcaption = str(photo["id"]) + " " + photo["title"]
+    newcaption = newcaption.strip()
     myentry = {
-        "caption": photo["title"],
+        "caption": newcaption,
+        "similarcaption": photo["title"],
         "date": int(photo["dateupload"]),
         "author": username,
         "images": [build_photo_url(photo)],
