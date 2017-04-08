@@ -30,6 +30,7 @@ thresh_resume = 8
 thresh_same_resume = 3
 timeout_s = 30
 
+debug = False
 overwrite = False
 do_async = False
 lockfile = None
@@ -163,6 +164,9 @@ def download_real(url, output, options):
     if "timeout" not in options:
         options["timeout"] = timeout_s
 
+    if "similar" not in options:
+        options["similar"] = []
+
     addext = options["addext"]
 
     if type(addext) in [list, tuple]:
@@ -256,78 +260,12 @@ def download_real(url, output, options):
                         same_length = 0
 
                     old_length = out_file.tell()
-            if out_file:
-                out_file.close()
-                break
 
-            break
-
-            if not addext:
-                with open(output, 'wb') as out_file:
-                    content_length = -1
-                    old_length = -1
-                    times = 0
-                    same_length = 0
-                    strerr = ""
-                    while running:
-                        #if same_length > 0:
-                        #    print("Same length (" + str(same_length) + "/3)")
-                        if times > 1:
-                            print("Resuming (" + str(times) + "/" + str(thresh_resume) + ")" + strerr)
-                        if same_length >= thresh_same_resume:
-                            print("Same length " + str(thresh_same_resume) + " times, giving up")
-                            break
-                        if times >= thresh_resume:
-                            print("Resumed " + str(thresh_resume) + " times, giving up")
-                            break
-
-                        times += 1
-
-                        request = getrequest(url, start_range=out_file.tell(), end_range=content_length)
-                        with urllib.request.urlopen(request, timeout=our_timeout) as response:
-                            for header in response.headers._headers:
-                                if header[0].lower() == "content-length":
-                                    content_length = int(header[1])
-
-                            try:
-                                read_file = response.read()
-                            except http.client.IncompleteRead as e:
-                                read_file = e.partial
-
-                            out_file.write(read_file)
-                            out_file.flush()
-
-                            if out_file.tell() >= content_length:
-                                finished = True
-                                break
-                            elif out_file.tell() == old_length:
-                                same_length += 1
-                                strerr = " (same length " + str(same_length) + "/" + str(thresh_same_resume) + ")"
-                            else:
-                                strerr = ""
-                                same_length = 0
-
-                            old_length = out_file.tell()
-            else:
-                with urllib.request.urlopen(getrequest(url), timeout=our_timeout) as response:
-                    data = response.read()
-                    content_type = response.headers.get_content_type()
-                    splitted = content_type.split("/")
-
-                    if content_type in content_type_table:
-                        extension = content_type_table[content_type]
-                    else:
-                        extension = splitted[1]
-
-                    retval = output + "." + extension
-
-                    with open(output + "." + extension, "wb") as out_file:
-                        out_file.write(data)
-
-                    finished = True
-            #urllib.request.urlretrieve(url, filename=output)
             if finished:
+                if out_file:
+                    out_file.close()
                 break
+
         except urllib.error.HTTPError as e:
             print(e)
             if e.code == 404 or e.code == 403:
@@ -535,6 +473,10 @@ if __name__ == "__main__":
     myjson = sys.stdin.read()
     sys.stdin.close()
 
+    if len(sys.argv) > 1 and sys.argv[1] == "debug":
+        debug = True
+        sys.argv = sys.argv[1:]
+
     if len(sys.argv) > 1 and sys.argv[1] == "overwrite":
         overwrite = True
         sys.argv = sys.argv[1:]
@@ -644,6 +586,10 @@ if __name__ == "__main__":
         for i, image in enumerate(entry["images"]):
             if not running:
                 break
+
+            if debug:
+                print("[DEBUG] " + str(our_id) + " " + str(i))
+                pprint.pprint(entry)
 
             #imageurl = geturl(image)
             imageurl = image

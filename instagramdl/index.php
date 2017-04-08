@@ -6,6 +6,11 @@ if (count($argv) > 1) {
     $targetusername = $argv[1];
 }
 
+$once = false;
+if (count($argv) > 2 and ($argv[2] == "once")) {
+    $once = true;
+}
+
 #$instagram = new \InstagramAPI\Instagram($username, $password);
 $debug = false;
 $instagram = new \InstagramAPI\Instagram($debug);
@@ -20,7 +25,7 @@ try {
 
 $usernameid = $instagram->getUsernameId($targetusername);
 
-$usernameinfo = $instagram->getUsernameInfo($usernameid);
+$usernameinfo = $instagram->getUserInfoById($usernameid);
 $count = $usernameinfo->user->media_count;
 
 # Get all items
@@ -38,13 +43,16 @@ while (true) {
 
     #print($maxid . " " . count($allitems) . " " . $count . "\n");
 
-    if (count($allitems) >= $count) {
+    if (count($allitems) >= $count or $once) {
         break;
     }
     #break;
 }
 
 fwrite(STDERR, "\n");
+
+print(json_encode($allitems));
+exit();
 
 $thejson = array();
 
