@@ -1,8 +1,11 @@
 #!/bin/sh
 
-USER="$@"
+USER="$1"
 
 cd "`dirname "$0"`"
+
+shift
+ARGS="$@"
 
 if [ ! -e "$USER"_list.json ]; then
     echo "No list for $USER .. will download (press ENTER)"
@@ -31,5 +34,5 @@ do
         fi
     fi
 
-    cat "$USER""@S:""$ID".json | python ../download.py async
+    cat "$USER""@S:""$ID".json | python ../download.py $ARGS
 done

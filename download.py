@@ -440,7 +440,7 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
             kwargs["lastcontent"] = content
             kwargs["same_times"] = 0
 
-        download_image(pool, url, output, options, *args, **kwargs)
+        download_image(pool, url, oldoutput, options, *args, **kwargs)
 
     newurl = url
     if type(newurl) in [list, tuple]:
