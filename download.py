@@ -304,8 +304,12 @@ def download_real(url, output, options):
     if len(options["similar"]) > 0:
         ourcrc = crc32(retval)
         ourmd5 = None
+        oursize = os.path.getsize(retval)
 
         for similar in options["similar"]:
+            if os.path.getsize(similar) != oursize:
+                continue
+
             similarcrc = crc32(similar)
 
             if ourcrc == similarcrc:
