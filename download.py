@@ -302,15 +302,24 @@ def download_real(url, output, options):
             print(e)
 
     if len(options["similar"]) > 0:
-        ourcrc = crc32(retval)
-        ourmd5 = None
+        #ourcrc = crc32(retval)
+        ourcrc = None
+        ourmd5 = md5(retval)
         oursize = os.path.getsize(retval)
 
         for similar in options["similar"]:
             if os.path.getsize(similar) != oursize:
                 continue
 
-            similarcrc = crc32(similar)
+            similarmd5 = md5(similar)
+
+            if ourmd5 == similarmd5:
+                global similar_queue
+                similar_queue.append(similar)
+
+            continue
+
+            """similarcrc = crc32(similar)
 
             if ourcrc == similarcrc:
                 if not ourmd5:
@@ -320,7 +329,7 @@ def download_real(url, output, options):
 
                 if ourmd5 == similarmd5:
                     global similar_queue
-                    similar_queue.append(similar)
+                    similar_queue.append(similar)"""
 
     return retval
 
@@ -593,6 +602,10 @@ if __name__ == "__main__":
     generator = jsond["config"]["generator"]
     thedirbase = home + "/" + generator + "/" + jsond["author"] + "/"
 
+    no_videodl = False
+    if "no_videodl" in jsond["config"] and jsond["config"]["no_videodl"]:
+        no_videodl = True
+
     if not os.path.exists(thedirbase):
         os.makedirs(thedirbase, exist_ok=True)
         filesbase = []
@@ -748,7 +761,7 @@ if __name__ == "__main__":
             print("Done")
 
 
-        if not entry["videos"]:
+        if not entry["videos"] or no_videodl:
             entry["videos"] = []
 
         for i, video in enumerate(entry["videos"]):

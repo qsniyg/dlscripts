@@ -69,6 +69,7 @@ def main():
 
 
     i = 0
+    origurl = url
     for url in urls:
         if url:
             sys.stderr.write("\r[%i/%i] Downloading %s... " % (i+1, len(urls), url))
@@ -78,6 +79,37 @@ def main():
             jsondata = soup.find(attrs={"type": "application/ld+json"}).text
             jsondecode = ujson.loads(jsondata)
             sys.stderr.write("done\n")
+        else:
+            url = origurl
+
+        videosel = soup.select(".tumblr_video_container > iframe")
+        videos = []
+        if len(videosel) > 0:
+            if len(videosel) > 1:
+                sys.stderr.write("FIXME: More than one video!\n")
+
+            ogimage = soup.find("meta", attrs={"property": "og:image"})
+            if not ogimage:
+                sys.stderr.write("Couldn't find video thumbnail!\n")
+
+            video_thumb = urllib.parse.urljoin(url, ogimage["content"])
+            videourl = re.sub("[^/]*\.tumblr.com/", "vtt.tumblr.com/", video_thumb)
+            videourl = re.sub("_[a-z]*[0-9]*\.[^/]*$", ".mp4", videourl)
+            videos = [{"image": video_thumb, "video": videourl}]
+            print(videourl)
+            """sys.stderr.write("Downloading video page... ")
+            videourl = videos[0]["src"]
+            videodata = download(videourl)
+            videosoup = bs4.BeautifulSoup(videodata)
+            videosource = videosoup.select("source")
+            if len(videosource) == 0:
+                sys.stderr.write("Couldn't find video\n")
+
+            if len(videosource) > 1:
+                sys.stderr.write("FIXME: More than one video!\n")
+
+            sys.stderr.write("done\n")
+            pprint.pprint(videos)"""
 
         author = jsondecode["author"]
         myjson["title"] = author
@@ -94,13 +126,16 @@ def main():
             title = jsondecode["headline"]
         album = "[" + str(date.year)[-2:] + str(date.month).zfill(2) + str(date.day).zfill(2) + "] " + title
 
-        if "image" not in jsondecode:
-            continue
+        images = []
 
-        if "@list" in jsondecode["image"]:
-            images = jsondecode["image"]["@list"]
-        else:
-            images = [jsondecode["image"]]
+        if "image" in jsondecode:
+            if "@list" in jsondecode["image"]:
+                images = jsondecode["image"]["@list"]
+            else:
+                images = [jsondecode["image"]]
+
+        if len(images) == 0 and len(videos) == 0:
+            continue
 
         myjson["entries"].append({
             "caption": title,
@@ -108,7 +143,7 @@ def main():
             "date": date,
             "author": author,
             "images": images,
-            "videos": []
+            "videos": videos
         })
 
     print(ujson.dumps(myjson))
