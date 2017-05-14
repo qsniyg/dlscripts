@@ -12,7 +12,10 @@ from oauth2client.client import GoogleCredentials
 from pprint import pprint
 import re
 
-api_key = util.tokens["blogger_key"]
+if "blogger_key" in util.tokens:
+    api_key = util.tokens["blogger_key"]
+else:
+    api_key = None
 
 once = False
 
@@ -124,6 +127,10 @@ def getpostinfo_html(soup, jsondata):
 
 
 def exec_api(url):
+    if not api_key:
+        sys.stderr.write("Blogger API key required\n")
+        exit()
+
     service = googleapiclient.discovery.build('blogger', 'v3',
                                               developerKey=api_key)
 
