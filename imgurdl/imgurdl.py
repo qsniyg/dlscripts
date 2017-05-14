@@ -1,8 +1,9 @@
 from imgurpython import ImgurClient
 import pprint
 import sys
+import os
 import ujson
-sys.path.append("..")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import util
 
 client_id = util.tokens["imgur_id"]
