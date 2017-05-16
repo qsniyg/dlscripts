@@ -60,14 +60,17 @@ def parse_entry(info, content):
     for img in imagetag:
         if not img.has_attr("src"):
             continue
+
         if "blogspot" in img["src"]:
-            parent = img.parent
+            images.append(re.sub(r"/s[0-9]*/([^/]*)$", "/s0/\\1", img["src"]))
+            """parent = img.parent
             for parent_i in img.parents:
                 if parent_i and parent_i.name == "a":
                     parent = parent_i
                     break
 
-            images.append(parent["href"])
+            if parent.name != "a":
+            images.append(parent["href"])"""
         else:
             images.append(img["src"])
 
