@@ -25,8 +25,14 @@ windows_path = False
 if "windows" in util.tokens and util.tokens["windows"] == 1:
     windows_path = True
 
-thresh_processes = 3
-thresh_sleep_times = 20
+thresh_processes = 10
+thresh_sleep_times = 600
+
+if "thresh_processes" in util.tokens and util.tokens["thresh_processes"]:
+    thresh_processes = util.tokens["thresh_processes"]
+
+if "thresh_sleep_times" in util.tokens and util.tokens["thresh_sleep_times"]:
+    thresh_sleep_times = util.tokens["thresh_sleep_times"]
 
 thresh_resume = 8
 thresh_same_resume = 3
