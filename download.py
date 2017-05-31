@@ -20,6 +20,7 @@ import hashlib
 import binascii
 sys.path.append(".")
 import util
+import redis
 
 windows_path = False
 if "windows" in util.tokens and util.tokens["windows"] == 1:
@@ -36,6 +37,9 @@ if "thresh_sleep_times" in util.tokens and util.tokens["thresh_sleep_times"]:
 
 thresh_resume = 8
 thresh_same_resume = 3
+
+thresh_redis_check = 3
+
 timeout_s = 30
 
 debug = False
@@ -129,7 +133,8 @@ def quote_url(link):
 
 def getrequest(url, *args, **kargs):
     request = urllib.request.Request(quote_url(url))
-    if ".photobucket.com" not in url:
+    if (".photobucket.com" not in url and
+       ".tinypic.com" not in url):
         request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
         request.add_header('Pragma', 'no-cache')
         request.add_header('Cache-Control', 'max-age=0')
@@ -351,8 +356,59 @@ def download(pool, url, output, options = None, cb = None):
     else:
         download_real_cb(url, output, options, cb)
 
+
+def get_redis_key(url):
+    key = os.path.abspath(url)
+    if key.startswith(home):
+        key = key[len(home):]
+    key = "DLPATH:" + key
+    return key
+
+def get_redis_meta_str(url):
+    return get_meta_str(url).encode("utf-8")
+
+def check_redis(url):
+    if not rinstance:
+        return False
+
+    meta = get_redis_meta_str(url)
+    key = get_redis_key(url)
+
+    val = rinstance.hgetall(key)
+
+    if b"meta" in val and val[b"meta"] == meta:
+        if b"times" in val and int(val[b"times"]) >= thresh_redis_check:
+            return True
+    return False
+
+def update_redis(url):
+    if not rinstance:
+        return False
+
+    meta = get_redis_meta_str(url)
+    key = get_redis_key(url)
+
+    val = rinstance.hgetall(key)
+
+    if b"meta" in val and val[b"meta"] == meta:
+        if b"times" not in val:
+            val[b"times"] = "0"
+        val[b"times"] = str(int(val[b"times"]) + 1)
+    else:
+        val = {
+            "meta": meta,
+            "times": "0"
+        }
+
+    rinstance.hmset(key, val)
+
+
 def check_image(url):
+    retval = False
     try:
+        if check_redis(url):
+            return True
+
         if os.stat(url).st_size == 0:
             return False
 
@@ -361,11 +417,22 @@ def check_image(url):
             image.load()
         else:
             image.verify()
-        return True
+
+        retval = True
     except:
         return False
 
+    try:
+        update_redis(url)
+    except Exception as e:
+        print(e)
+
+    return retval
+
 def check_video(url):
+    if check_redis(url):
+        return True
+
     if os.stat(url).st_size == 0:
         return False
 
@@ -378,6 +445,11 @@ def check_video(url):
 
     if our_magic.split("/")[0] != "video" and our_magic != "application/x-shockwave-flash":
         return False
+
+    try:
+        update_redis(url)
+    except Exception as e:
+        print(e)
 
     return True
 
@@ -515,6 +587,11 @@ def sanitize_caption(entry_caption, entry):
 
     return newcaption
 
+def get_meta_str(f):
+    st = os.stat(f)
+
+    return "MOD: " + str(st.st_mtime) + " SIZE: " + str(st.st_size)
+
 def getdirs(base):
     return [x[0] for x in os.walk(base)]
 
@@ -578,6 +655,11 @@ if __name__ == "__main__":
     else:
         pool = None
 
+    try:
+        rinstance = redis.StrictRedis(host='localhost')
+    except:
+        rinstance = None
+
     processes = get_processes_amt()
     times = 0
     while processes > thresh_processes and not no_lockfile and running:
@@ -603,7 +685,7 @@ if __name__ == "__main__":
     prefix = "~/Pictures/social/"
     if "prefix" in util.tokens:
         prefix = util.tokens["prefix"]
-    home = os.path.expanduser(prefix)
+    home = os.path.abspath(os.path.expanduser(prefix))
 
     generator = jsond["config"]["generator"]
     thedirbase = home + "/" + generator + "/" + jsond["author"] + "/"

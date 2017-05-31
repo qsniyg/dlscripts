@@ -96,7 +96,7 @@ def main():
             videourl = re.sub("[^/]*\.tumblr.com/", "vtt.tumblr.com/", video_thumb)
             videourl = re.sub("_[a-z]*[0-9]*\.[^/]*$", ".mp4", videourl)
             videos = [{"image": video_thumb, "video": videourl}]
-            print(videourl)
+            #print(videourl)
             """sys.stderr.write("Downloading video page... ")
             videourl = videos[0]["src"]
             videodata = download(videourl)
@@ -133,6 +133,12 @@ def main():
                 images = jsondecode["image"]["@list"]
             else:
                 images = [jsondecode["image"]]
+
+        if len(images) == 0:
+            imagelist = soup.select("#post img")
+            for image in imagelist:
+                imageurl = re.sub("([^a-zA-Z0-9]*)(i[0-9]*\.tinypic\.com)", "\\1o\\2", image["src"])
+                images.append(imageurl)
 
         if len(images) == 0 and len(videos) == 0:
             continue
