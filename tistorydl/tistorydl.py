@@ -63,6 +63,7 @@ if __name__ == "__main__":
             "#content #content-inner .list ul li > a",
             "#result li > a",
             "ul.list_search li > a",
+            "ul.list_search > li > span.list_search_cnt > a",
             ".list_wrap div.article_skin div.list_content a",
             ".gallery_ul li.grid-item > a",
             "section div.fixed_img_col ul li > a",

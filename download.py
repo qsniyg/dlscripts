@@ -94,7 +94,7 @@ class ThreadPool:
         self.tasks.join()
 
 
-def getext(urls):
+def getext(urls, local=False):
     origtype = type(urls)
     if origtype not in [list, tuple]:
         urls = [urls]
@@ -102,7 +102,10 @@ def getext(urls):
     ret = []
 
     for url in urls:
-        match = re.match(r"[^?]*\.(?P<ext>[^?/:]*)(:[^?/]*)?$", url)
+        if local:
+            match = re.match(r".*\.(?P<ext>[^. ]*)$", url)
+        else:
+            match = re.match(r"[^?]*\.(?P<ext>[^?/:]*)(:[^?/]*)?$", url)
 
         if not match:
             ret.append(None)
@@ -810,7 +813,7 @@ if __name__ == "__main__":
 
             renamed = False
             if exists:
-                oext = getext(thedirbase + file_)
+                oext = getext(thedirbase + file_, True)
                 if not ext or True: # hackish
                     if oext:
                         if thedirbase + file_ != fullout + "." + oext:
