@@ -134,7 +134,8 @@ if __name__ == "__main__":
             "#content",
             "#mArticle",
             "#article",
-            "#entire > #contents > .post"
+            "#entire > #contents > .post",
+            "#main .article-desc"
         ]
 
         for selector in article_selectors:
