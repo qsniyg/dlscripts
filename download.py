@@ -691,7 +691,7 @@ if __name__ == "__main__":
     home = os.path.abspath(os.path.expanduser(prefix))
 
     generator = jsond["config"]["generator"]
-    thedirbase = home + "/" + generator + "/" + jsond["author"] + "/"
+    thedirbase = home + "/" + generator + "/" + sanitize_path(jsond["author"]) + "/"
 
     no_videodl = False
     if "no_videodl" in jsond["config"] and jsond["config"]["no_videodl"]:
