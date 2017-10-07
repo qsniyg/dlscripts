@@ -372,12 +372,15 @@ def get_redis_meta_str(url):
 
 def check_redis(url):
     if not rinstance:
-        return False
+        return None
 
     meta = get_redis_meta_str(url)
     key = get_redis_key(url)
 
-    val = rinstance.hgetall(key)
+    try:
+        val = rinstance.hgetall(key)
+    except:
+        return None
 
     if b"meta" in val and val[b"meta"] == meta:
         if b"times" in val and int(val[b"times"]) >= thresh_redis_check:
@@ -386,7 +389,7 @@ def check_redis(url):
 
 def update_redis(url):
     if not rinstance:
-        return False
+        return None
 
     meta = get_redis_meta_str(url)
     key = get_redis_key(url)
@@ -882,7 +885,7 @@ if __name__ == "__main__":
             sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            if jsond["config"]["generator"] == "instagram" or url.endswith(".mp4"):
+            if (jsond["config"]["generator"] == "instagram" and "/f/instagram/v/" in url) or url.endswith(".mp4"):
                 fullout = fullout + ".mp4"
 
                 #if os.path.exists(fullout):
