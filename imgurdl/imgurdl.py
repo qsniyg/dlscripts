@@ -127,6 +127,9 @@ for album in all_albums:
     albumi += 1
     albumname = album.title
 
+    if not albumname:
+        albumname = "(n/a)"
+
     text = albumname + " (%i/%i)" % (albumi, len(all_albums))
 
     sys.stderr.write("\rFetching " + text)

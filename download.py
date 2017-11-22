@@ -94,7 +94,7 @@ class ThreadPool:
         self.tasks.join()
 
 
-def getext(urls, local=False):
+def getext(urls, local=False, *args, **kwargs):
     origtype = type(urls)
     if origtype not in [list, tuple]:
         urls = [urls]
@@ -111,7 +111,12 @@ def getext(urls, local=False):
             ret.append(None)
             continue
 
-        ret.append(match.group("ext"))
+        addme = match.group("ext")
+
+        if "lower" in kwargs and kwargs["lower"]:
+            addme = addme.lower()
+
+        ret.append(addme)
 
     if origtype not in [list, tuple]:
         return ret[0]
@@ -120,6 +125,27 @@ def getext(urls, local=False):
             if ext:
                 return ret
         return None
+
+
+similarexts = [
+    ["jpg", "jpeg"],
+    ["mp4", "mkv"]
+]
+
+
+def similarext(url1, url2):
+    url1_ext = getext(url1, True).lower()
+    url2_ext = getext(url2, True).lower()
+
+    if url1_ext == url2_ext:
+        return True
+
+    for ext in similarexts:
+        if url1_ext in ext and url2_ext in ext:
+            return True
+
+    return False
+
 
 def getsuffix(i, array):
     if len(array) > 1:
@@ -608,6 +634,13 @@ def file_exists(f, dirs):
                 return True
     return False
 
+def video_exists(f, dirs):
+    for d in dirs:
+        for i in os.listdir(d):
+            if similar_filename(i, f) and check_video(os.path.join(d, i)):
+                return True
+    return False
+
 def image_exists(f, dirs):
     for d in dirs:
         for i in os.listdir(d):
@@ -687,6 +720,9 @@ if __name__ == "__main__":
 
     jsond = json.loads(myjson)
     #print(jsond)
+
+    if "no_dl" in jsond["config"] and jsond["config"]["no_dl"]:
+        sys.exit()
 
     prefix = "~/Pictures/social/"
     if "prefix" in util.tokens:
@@ -863,6 +899,9 @@ if __name__ == "__main__":
                 break
             #ext = getext(video["video"])
 
+            if "live" in video and video["live"]:
+                continue
+
             suffix = getsuffix(i, entry["videos"])
 
             url = quote_url(video["video"])
@@ -875,7 +914,7 @@ if __name__ == "__main__":
 
             exists = False
             for file_ in files:
-                if file_.startswith(output) and check_video(os.path.join(thedir, file_)):
+                if file_.startswith(output) and similar_filename(file_, output) and check_video(os.path.join(thedir, file_)):
                     exists = True
                     break
 
@@ -886,10 +925,11 @@ if __name__ == "__main__":
             sys.stdout.flush()
 
             if (jsond["config"]["generator"] == "instagram" and "/f/instagram/v/" in url) or url.endswith(".mp4"):
-                fullout = fullout + ".mp4"
+                if not url.endswith(".mp4"):
+                    fullout = fullout + ".mp4"
 
                 #if os.path.exists(fullout):
-                if file_exists(output, dirs):
+                if video_exists(output, dirs):
                     continue
 
                 download_video(pool, url, fullout)
