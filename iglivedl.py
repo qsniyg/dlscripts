@@ -11,7 +11,8 @@ import subprocess
 import argparse
 
 
-outputdir = "output"
+defaultoutputdir = '~/.cache/iglivedl/'  # "output"
+outputdir = os.path.expanduser(defaultoutputdir)
 verbose = 1
 
 cache = {}
@@ -212,7 +213,7 @@ def remove_singles(array1, array2):
     return array1
 
 
-def stitch_files(url, output):
+def stitch_files(url, output, cleanup=False):
     mediaid = re.sub(r".*/([0-9]*)[^/]*$", "\\1", url)
 
     video = []
@@ -229,11 +230,11 @@ def stitch_files(url, output):
                 if "-init." not in f:
                     arr.append(os.path.join(outputdir, f))
 
-    video = sorted(video)
-    audio = sorted(audio)
+    video_orig = sorted(video)
+    audio_orig = sorted(audio)
 
-    video = remove_singles(video, audio)
-    audio = remove_singles(audio, video)
+    video = remove_singles(video_orig, audio)
+    audio = remove_singles(audio_orig, video)
 
     initfile = os.path.join(outputdir, mediaid + "-init")
     if (not os.path.exists(initfile + ".m4v")
@@ -260,28 +261,25 @@ def stitch_files(url, output):
     if output == "auto":
         output = outfile + ".mp4"
 
-    return subprocess.check_call(["ffmpeg", "-i", videoout, "-i", audioout, "-c", "copy", output]) == 0
+    retval = subprocess.check_call(["ffmpeg", "-i", videoout, "-i", audioout, "-c", "copy", "-y", output]) == 0
+
+    if cleanup and retval:
+        print("Cleaning up")
+        os.remove(videoout)
+        os.remove(audioout)
+        for f in video:
+            os.remove(f)
+        for f in audio:
+            os.remove(f)
 
 
-def main():
-    os.makedirs(outputdir, exist_ok=True)
-
-    parser = argparse.ArgumentParser(description='Download Instagram Live Streams')
-    parser.add_argument('url', help='Livestream MPD Url')
-    parser.add_argument('--stitch', action='store_true', help='Stitch already downloaded files')
-    parser.add_argument('--output', default='auto', help='Output file')
-    args = parser.parse_args()
-
-    if args.stitch:
-        stitch_files(args.url, args.output)
-        return
-
+def download_stream(url):
     running = True
     first = True
     while running:
         if verbose >= 2:
             print("loop")
-        out = get_mpd(args.url, first)
+        out = get_mpd(url, first)
         if not out:
             break
         running = out["running"]
@@ -291,7 +289,31 @@ def main():
     prev_pool.wait_completion()
     main_pool.wait_completion()
 
-    stitch_files(args.url, args.output)
+
+def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto"):
+    global outputdir
+    outputdir = os.path.expanduser(cachedir)
+    os.makedirs(outputdir, exist_ok=True)
+
+    if stitch:
+        stitch_files(url, output, cleanup=cleanup)
+        return
+
+    download_stream(url)
+
+    stitch_files(url, output, cleanup=cleanup)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Download Instagram Live Streams')
+    parser.add_argument('url', help='Livestream MPD Url')
+    parser.add_argument('--stitch', action='store_true', help='Stitch already downloaded files')
+    parser.add_argument('--no-cleanup', dest='cleanup', action='store_false', help="Don't clean up after downloading")
+    parser.add_argument('--cache-dir', dest='cachedir', default=defaultoutputdir, help="Cache directory")
+    parser.add_argument('--output', default='auto', help='Output file')
+    args = parser.parse_args()
+
+    run(args.url, stitch=args.stitch, cleanup=args.cleanup, cachedir=args.cachedir, output=args.output)
 
 
 if __name__ == "__main__":
