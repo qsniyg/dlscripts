@@ -39,7 +39,7 @@ def download_mpd(url):
         data = util.download(url)
         if lastmpd == data:
             lastcount = lastcount + 1
-            if verbose >= 1:
+            if (verbose >= 1 and lastcount > 2) or verbose >= 2:
                 print("Same (%i/%i)" % (lastcount, lastcount_thresh))
             if lastcount > lastcount_thresh:
                 return None
@@ -174,17 +174,16 @@ def get_mpd(url, download_prev=False):
     alinks = get_representation_links(url, arepresentation)
 
     links = vlinks + alinks
-    print(len(links))
 
     for link in links:
         main_pool.add_task(download_link, link)
 
-    print("Done download in main thread")
+    #print("Done download in main thread")
 
     # maybe thread this?
     if download_prev or True:
         download_prev_representation(url, vrepresentation, arepresentation, not download_prev)
-        print("Done prev in main thread")
+        #print("Done prev in main thread")
 
     return {
         "running": mpd.attrib.get("type") == "dynamic",
@@ -198,6 +197,19 @@ def stitch(files, output):
         for f in files:
             with open(f, 'rb') as fd:
                 shutil.copyfileobj(fd, wfd, 1024*1024*10)
+
+
+def remove_singles(array1, array2):
+    for item in array1:
+        if item.endswith(".m4v"):
+            item1 = re.sub(r"\.m4v$", ".m4a", item)
+        else:
+            item1 = re.sub(r"\.m4a$", ".m4v", item)
+
+        if item1 not in array2:
+            print("Warning: removing single item: " + item)
+            array1.remove(item)
+    return array1
 
 
 def stitch_files(url, output):
@@ -220,6 +232,9 @@ def stitch_files(url, output):
     video = sorted(video)
     audio = sorted(audio)
 
+    video = remove_singles(video, audio)
+    audio = remove_singles(audio, video)
+
     initfile = os.path.join(outputdir, mediaid + "-init")
     if (not os.path.exists(initfile + ".m4v")
         or not os.path.exists(initfile + ".m4a")):
@@ -237,7 +252,9 @@ def stitch_files(url, output):
         print("Different video/audio length, currenty unhandled")
         return
 
+    print("Stitching %i video files" % len(video))
     stitch(video, videoout)
+    print("Stitching %i audio files" % len(video))
     stitch(audio, audioout)
 
     if output == "auto":
@@ -262,7 +279,8 @@ def main():
     running = True
     first = True
     while running:
-        print("loop")
+        if verbose >= 2:
+            print("loop")
         out = get_mpd(args.url, first)
         if not out:
             break
