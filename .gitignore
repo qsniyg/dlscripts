@@ -4,3 +4,7 @@
 *config.php*
 *.pyc
 vendor
+
+*.mp4
+*.m4a
+*.m4v
