@@ -953,13 +953,15 @@ if __name__ == "__main__":
             exists = False
             for file_ in files:
                 fullpath = os.path.join(thedir, file_)
-                if file_.startswith(output) and similar_filename(file_, output):
+                if file_.startswith(output):  # and similar_filename(file_, output):
                     if not live_video:
-                        if check_video(fullpath):
+                        if similar_filename(file_, output) and check_video(fullpath):
                             exists = True
                             break
                     else:
+                        #print(file_)
                         if re.search(r"\.tdownload\.[0-9]*$", file_):
+                            #print("TDOWNLOAD")
                             process = file_.split(".")[-1]
                             if not process_exists(process):
                                 print("Process for " + str(fullpath) + " doesn't exist")
@@ -970,7 +972,7 @@ if __name__ == "__main__":
                             else:
                                 exists = True
                                 break
-                        elif check_video(fullpath):
+                        elif similar_filename(file_, output) and check_video(fullpath):
                             exists = True
                             break
 
