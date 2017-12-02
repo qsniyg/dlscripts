@@ -48,6 +48,8 @@ do_async = False
 lockfile = None
 no_lockfile = False
 
+livelocks = []
+
 has_errors = False
 error_files = []
 
@@ -608,7 +610,7 @@ def fsify_album(text):
 
 def sanitize_caption(entry_caption, entry):
     authorcaption = ""
-    if "author" in entry and entry["author"] != jsond["author"]:
+    if "author" in entry and entry["author"] != jsond["author"] and not is_index:
         authorcaption = "[@" + entry["author"] + "] "
 
     if not entry_caption or len(entry_caption) == 0:
@@ -652,6 +654,22 @@ from subprocess import check_output
 def get_pid(name):
     return check_output(["pgrep","-f",name]).split()
 import time
+
+
+def process_exists(pid):
+    return os.path.exists("/proc/" + str(pid))
+
+
+subprocesses = []
+
+
+def run_subprocess(arr):
+    p = subprocess.Popen(arr)
+    if not do_async:
+        p.wait()
+    else:
+        subprocesses.append(p)
+
 
 def get_processes_amt():
     dir = "/tmp/"
@@ -730,19 +748,27 @@ if __name__ == "__main__":
     home = os.path.abspath(os.path.expanduser(prefix))
 
     generator = jsond["config"]["generator"]
-    thedirbase = home + "/" + generator + "/" + sanitize_path(jsond["author"]) + "/"
+    thedirgen = home + "/" + generator + "/"
+    thedirbase = thedirgen + sanitize_path(jsond["author"]) + "/"
+
+    is_index = False
+    if "is_index" in jsond["config"] and jsond["config"]["is_index"]:
+        is_index = True
 
     no_videodl = False
     if "no_videodl" in jsond["config"] and jsond["config"]["no_videodl"]:
         no_videodl = True
 
-    if not os.path.exists(thedirbase):
-        os.makedirs(thedirbase, exist_ok=True)
-        filesbase = []
+    if not is_index:
+        if not os.path.exists(thedirbase):
+            os.makedirs(thedirbase, exist_ok=True)
+            filesbase = []
+        else:
+            filesbase = os.listdir(thedirbase)
+        dirs = getdirs(thedirbase)
     else:
-        filesbase = os.listdir(thedirbase)
-
-    dirs = getdirs(thedirbase)
+        filesbase = []
+        dirs = []
 
     current_id = 1
     all_entries = len(jsond["entries"])
@@ -757,11 +783,20 @@ if __name__ == "__main__":
         if (not entry["images"] or len(entry["images"]) <= 0) and (not entry["videos"] or len(entry["videos"]) <= 0):
             continue
 
+        if is_index:
+            thedirbase = thedirgen + sanitize_path(entry["author"]) + "/"
+            if not os.path.exists(thedirbase):
+                os.makedirs(thedirbase, exist_ok=True)
+                filesbase = []
+            else:
+                filesbase = os.listdir(thedirbase)
+            dirs = getdirs(thedirbase)
+
         entry_caption = entry["caption"]
         if "media_caption" in entry:
             entry_caption = entry["media_caption"]
 
-        authorcaption = ""
+        """authorcaption = ""
         if "author" in entry and entry["author"] != jsond["author"]:
             authorcaption = "[@" + entry["author"] + "] "
 
@@ -769,7 +804,8 @@ if __name__ == "__main__":
             newcaption = ""
         else:
             #oldcaption = " " + old_fsify(entry_caption)
-            newcaption = " " + authorcaption + old_fsify(entry_caption)
+            newcaption = " " + authorcaption + old_fsify(entry_caption)"""
+        newcaption = sanitize_caption(entry_caption, entry)
 
         newdate = datetime.datetime.fromtimestamp(entry["date"]).isoformat()
 
@@ -899,8 +935,10 @@ if __name__ == "__main__":
                 break
             #ext = getext(video["video"])
 
+            live_video = False
             if "live" in video and video["live"]:
-                continue
+                live_video = True
+                #continue
 
             suffix = getsuffix(i, entry["videos"])
 
@@ -914,11 +952,44 @@ if __name__ == "__main__":
 
             exists = False
             for file_ in files:
-                if file_.startswith(output) and similar_filename(file_, output) and check_video(os.path.join(thedir, file_)):
-                    exists = True
-                    break
+                fullpath = os.path.join(thedir, file_)
+                if file_.startswith(output) and similar_filename(file_, output):
+                    if not live_video:
+                        if check_video(fullpath):
+                            exists = True
+                            break
+                    else:
+                        if re.search(r"\.tdownload\.[0-9]*$", file_):
+                            process = file_.split(".")[-1]
+                            if not process_exists(process):
+                                print("Process for " + str(fullpath) + " doesn't exist")
+                                try:
+                                    os.unlink(fullpath)
+                                except Exception as e:
+                                    print(e)
+                            else:
+                                exists = True
+                                break
+                        elif check_video(fullpath):
+                            exists = True
+                            break
 
             if exists and not overwrite:
+                continue
+
+            if live_video:
+                sys.stdout.write("[DL:LIVE] " + output + " (%i/%i)... " % (our_id, all_entries))
+                sys.stdout.flush()
+
+                fullout = fullout + ".mp4"
+
+                livelock = fullout + ".tdownload." + str(os.getpid())
+                open(livelock, 'a').close()
+
+                livelocks.append(livelock)
+
+                run_subprocess(["python", os.path.join(os.path.dirname(__file__), "iglivedl.py"), url, "--output", fullout])
+                print("Done")
                 continue
 
             sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
@@ -936,10 +1007,11 @@ if __name__ == "__main__":
             else:
                 fullout = fullout + ".%(ext)s"
 
-                p = subprocess.Popen(["youtube-dl", url, "-o", fullout])
+                """p = subprocess.Popen(["youtube-dl", url, "-o", fullout])
 
                 if not do_async:
-                    p.wait()
+                    p.wait()"""
+                run_subprocess(["youtube-dl", url, "-o", fullout])
 
             #print("Downloaded video " + output + " (%i/%i)" % (our_id, all_entries))
             print("Done")
@@ -960,9 +1032,18 @@ if __name__ == "__main__":
             print(e)
         print("Done")
 
+    for sub in subprocesses:
+        sub.wait()
+
     if lockfile:
         try:
             os.unlink(lockfile)
+        except Exception as e:
+            print(e)
+
+    for livelock in livelocks:
+        try:
+            os.unlink(livelock)
         except Exception as e:
             print(e)
 
