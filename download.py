@@ -954,27 +954,27 @@ if __name__ == "__main__":
             for file_ in files:
                 fullpath = os.path.join(thedir, file_)
                 if file_.startswith(output):  # and similar_filename(file_, output):
-                    if not live_video:
-                        if similar_filename(file_, output) and check_video(fullpath):
+                    #if not live_video:
+                    #    if similar_filename(file_, output) and check_video(fullpath):
+                    #        exists = True
+                    #        break
+                    #else:
+                    #    #print(file_)
+                    if re.search(r"\.tdownload\.[0-9]*$", file_):
+                        #print("TDOWNLOAD")
+                        process = file_.split(".")[-1]
+                        if not process_exists(process):
+                            print("Process for " + str(fullpath) + " doesn't exist")
+                            try:
+                                os.unlink(fullpath)
+                            except Exception as e:
+                                print(e)
+                        else:
                             exists = True
                             break
-                    else:
-                        #print(file_)
-                        if re.search(r"\.tdownload\.[0-9]*$", file_):
-                            #print("TDOWNLOAD")
-                            process = file_.split(".")[-1]
-                            if not process_exists(process):
-                                print("Process for " + str(fullpath) + " doesn't exist")
-                                try:
-                                    os.unlink(fullpath)
-                                except Exception as e:
-                                    print(e)
-                            else:
-                                exists = True
-                                break
-                        elif similar_filename(file_, output) and check_video(fullpath):
-                            exists = True
-                            break
+                    elif similar_filename(file_, output) and check_video(fullpath):
+                        exists = True
+                        break
 
             if exists and not overwrite:
                 continue
@@ -1007,13 +1007,18 @@ if __name__ == "__main__":
 
                 download_video(pool, url, fullout)
             else:
-                fullout = fullout + ".%(ext)s"
+                newfullout = fullout + ".%(ext)s"
 
                 """p = subprocess.Popen(["youtube-dl", url, "-o", fullout])
 
                 if not do_async:
                     p.wait()"""
-                run_subprocess(["youtube-dl", url, "-o", fullout])
+                livelock = fullout + ".tdownload." + str(os.getpid())
+                open(livelock, 'a').close()
+
+                livelocks.append(livelock)
+
+                run_subprocess(["youtube-dl", url, "-o", newfullout])
 
             #print("Downloaded video " + output + " (%i/%i)" % (our_id, all_entries))
             print("Done")

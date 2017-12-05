@@ -259,11 +259,12 @@ def stitch_files(url, output, cleanup=False):
     stitch(audio, audioout)
 
     if output == "auto":
-        output = outfile + ".mp4"
+        output = outfile + ".mkv"
 
-    retval = subprocess.check_call(["ffmpeg", "-i", videoout, "-i", audioout, "-c", "copy", "-y", output]) == 0
+    #retval = subprocess.check_call(["ffmpeg", "-i", videoout, "-i", audioout, "-c", "copy", "-y", output]) == 0
+    retval = subprocess.check_call(["mkvmerge", "-o", output, "-A", videoout, audioout]) == 0
 
-    if cleanup and retval:
+    if cleanup and retval and False:
         print("Cleaning up")
         os.remove(videoout)
         os.remove(audioout)

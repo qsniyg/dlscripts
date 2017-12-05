@@ -9,6 +9,8 @@ import urllib.request
 import http
 import queue
 import threading
+import sys
+import datetime
 
 running = True
 
@@ -220,3 +222,34 @@ try:
         tokens = ujson.loads(f.read())
 except Exception as e:
     pass
+
+
+class Logger(object):
+    def __init__(self, origstream, filename="Default.log"):
+        self.terminal = origstream
+        try:
+            self.log = open(filename, "a")
+        except Exception:
+            self.log = None
+
+    def write(self, message):
+        self.terminal.write(message)
+        if self.log:
+            try:
+                self.log.write(message)
+            except Exception:
+                pass
+
+    def flush(self):
+        self.terminal.flush()
+        if self.log:
+            try:
+                self.log.flush()
+            except Exception:
+                pass
+
+
+defaultlogpath = os.path.expanduser('~/.cache/dlscripts/')
+os.makedirs(defaultlogpath, exist_ok=True)
+sys.stdout = Logger(sys.stdout, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".olog")
+sys.stderr = Logger(sys.stderr, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".elog")
