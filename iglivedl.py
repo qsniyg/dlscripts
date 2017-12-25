@@ -122,8 +122,8 @@ def download_prev_representation(url, vrepresentation, arepresentation, until_pr
     prev_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev)
 
 
-def download_link(url):
-    if url in cache:
+def download_link(url, nocache=False):
+    if url in cache and not nocache:
         return cache[url]
 
     basename = os.path.basename(url)
@@ -177,7 +177,7 @@ def get_mpd(url, download_prev=False):
     links = vlinks + alinks
 
     for link in links:
-        main_pool.add_task(download_link, link)
+        main_pool.add_task(download_link, link, True)
 
     #print("Done download in main thread")
 
@@ -201,6 +201,7 @@ def stitch(files, output):
 
 
 def remove_singles(array1, array2):
+    newarray = []
     for item in array1:
         if item.endswith(".m4v"):
             item1 = re.sub(r"\.m4v$", ".m4a", item)
@@ -209,8 +210,9 @@ def remove_singles(array1, array2):
 
         if item1 not in array2:
             print("Warning: removing single item: " + item)
-            array1.remove(item)
-    return array1
+        else:
+            newarray.append(item)
+    return newarray
 
 
 def stitch_files(url, output, cleanup=False):
@@ -262,7 +264,8 @@ def stitch_files(url, output, cleanup=False):
         output = outfile + ".mkv"
 
     #retval = subprocess.check_call(["ffmpeg", "-i", videoout, "-i", audioout, "-c", "copy", "-y", output]) == 0
-    retval = subprocess.check_call(["mkvmerge", "-o", output, "-A", videoout, audioout]) == 0
+    retval = subprocess.check_call(["ffmpeg", "-ss", "0", "-seek_timestamp", "-2147483648.000000", "-i", videoout, "-ss", "0", "-seek_timestamp", "-2147483648.000000", "-i", audioout, "-c", "copy", "-y", output]) == 0
+    #retval = subprocess.check_call(["mkvmerge", "-o", output, "-A", videoout, audioout]) == 0
 
     if cleanup and retval and False:
         print("Cleaning up")

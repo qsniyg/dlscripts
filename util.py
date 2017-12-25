@@ -251,5 +251,7 @@ class Logger(object):
 
 defaultlogpath = os.path.expanduser('~/.cache/dlscripts/')
 os.makedirs(defaultlogpath, exist_ok=True)
-sys.stdout = Logger(sys.stdout, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".olog")
-sys.stderr = Logger(sys.stderr, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".elog")
+
+if tokens.get("log") is True:
+    sys.stdout = Logger(sys.stdout, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".olog")
+    sys.stderr = Logger(sys.stderr, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".elog")
