@@ -980,6 +980,9 @@ if __name__ == "__main__":
                 continue
 
             if live_video:
+                if "no_livedl" in jsond["config"] and jsond["config"]["no_livedl"]:
+                    continue
+
                 sys.stdout.write("[DL:LIVE] " + output + " (%i/%i)... " % (our_id, all_entries))
                 sys.stdout.flush()
 
