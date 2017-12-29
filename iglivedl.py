@@ -267,7 +267,7 @@ def stitch_files(url, output, cleanup=False):
     retval = subprocess.check_call(["ffmpeg", "-ss", "0", "-seek_timestamp", "-2147483648.000000", "-i", videoout, "-ss", "0", "-seek_timestamp", "-2147483648.000000", "-i", audioout, "-c", "copy", "-y", output]) == 0
     #retval = subprocess.check_call(["mkvmerge", "-o", output, "-A", videoout, audioout]) == 0
 
-    if cleanup and retval and False:
+    if cleanup and retval:
         print("Cleaning up")
         os.remove(videoout)
         os.remove(audioout)

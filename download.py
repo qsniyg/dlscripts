@@ -993,7 +993,12 @@ if __name__ == "__main__":
 
                 livelocks.append(livelock)
 
-                run_subprocess(["python", os.path.join(os.path.dirname(__file__), "iglivedl.py"), url, "--output", fullout])
+                cmdline = ["python", os.path.join(os.path.dirname(__file__), "iglivedl.py"), url, "--output", fullout]
+
+                if "no_live_cleanup" in util.tokens and util.tokens["no_live_cleanup"]:
+                    cmdline.append("--no-cleanup")
+
+                run_subprocess(cmdline)
                 print("Done")
                 continue
 
