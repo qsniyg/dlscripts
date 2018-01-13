@@ -28,9 +28,11 @@ lastcount = 0
 
 lastcount_thresh = 30
 
+ns_schema = "{urn:mpeg:dash:schema:mpd:2011}"
+
 
 def _add_ns(path):
-    return "{urn:mpeg:dash:schema:mpd:2011}" + path
+    return ns_schema + path
 
 
 def download_mpd(url):
@@ -66,28 +68,72 @@ def choose_representation(representations):
 
 def parse_link(url, link, segment=None, time=""):
     if segment is not None:
-        time = segment.attrib.get("t")
+        newtime = segment.attrib.get("t")
+        if newtime:
+            time = newtime
     return urllib.parse.urljoin(url, link.replace("$Time$", time))
 
 
-def get_representation_links(url, representation):
-    template = representation.find(_add_ns("SegmentTemplate"))
+def get_template(representation):
+    return representation.find(_add_ns("SegmentTemplate"))
+
+
+def get_link(url, template, representation, segment=None, time=""):
+    baseurl = None
+    try:
+        baseurl = representation.find(_add_ns("BaseURL")).text
+    except Exception:
+        pass
+
+    if not baseurl:# or True:
+        return parse_link(url, template.attrib.get("media"), segment=segment, time=time)
+    else:
+        return parse_link(url, baseurl, segment=segment, time=time)
+
+
+def get_representation_links(url, representation, template):
+    #template = representation.find(_add_ns("SegmentTemplate"))
+    newtemplate = get_template(representation)
+    if newtemplate is not None:
+        template = newtemplate
+
     timeline = template.find(_add_ns("SegmentTimeline"))
 
     links = []
-    links.append(parse_link(url, template.attrib.get("initialization")))
+    try:
+        links.append(parse_link(url, template.attrib.get("initialization")))
+    except Exception:
+        print("Warning: no initialization")
+        pass
 
     for s in timeline.findall(_add_ns("S")):
-        links.append(parse_link(url, template.attrib.get("media"), segment=s))
+        links.append(get_link(url, template, representation, segment=s))
+        continue
+        try:
+            links.append(get_link(url, template, representation, s))#parse_link(url, template.attrib.get("media"), segment=s))
+        except Exception:
+            links.append(parse_link(url, representation.find(_add_ns("BaseURL")).text, segment=s))
 
     return links
 
 
-def download_prev_representation_real(url, vrepresentation, arepresentation, until_prev):
+def download_prev_representation_real(url, vrepresentation, arepresentation, until_prev, template):
     global prev_running
     prev_running = True
-    vtemplate = vrepresentation.find(_add_ns("SegmentTemplate"))
-    atemplate = arepresentation.find(_add_ns("SegmentTemplate"))
+
+    vtemplate = template
+    atemplate = template
+
+    newtemplate = get_template(vrepresentation)
+    if newtemplate:
+        vtemplate = newtemplate
+
+    newtemplate = get_template(arepresentation)
+    if newtemplate:
+        atemplate = newtemplate
+
+    #vtemplate = vrepresentation.find(_add_ns("SegmentTemplate"))
+    #atemplate = arepresentation.find(_add_ns("SegmentTemplate"))
     timeline = vtemplate.find(_add_ns("SegmentTimeline"))
 
     s = timeline.find(_add_ns("S"))
@@ -101,7 +147,8 @@ def download_prev_representation_real(url, vrepresentation, arepresentation, unt
         if i < 0:
             prev_running = False
             return
-        retcode = download_link(parse_link(url, vtemplate.attrib.get("media"), time=str(i)))
+        #retcode = download_link(parse_link(url, vtemplate.attrib.get("media"), time=str(i)))
+        retcode = download_link(get_link(url, vtemplate, vrepresentation, time=str(i)))
         if retcode != 200:
             if retcode != 304 or until_prev:
                 if retcode == 410:
@@ -112,14 +159,15 @@ def download_prev_representation_real(url, vrepresentation, arepresentation, unt
                     prev_running = False
                     return
                 continue
-        download_link(parse_link(url, atemplate.attrib.get("media"), time=str(i)))
+        #download_link(parse_link(url, atemplate.attrib.get("media"), time=str(i)))
+        download_link(get_link(url, atemplate, arepresentation, time=str(i)))
     prev_running = False
 
 
-def download_prev_representation(url, vrepresentation, arepresentation, until_prev):
+def download_prev_representation(url, vrepresentation, arepresentation, until_prev, template):
     if prev_running and False:
         return
-    prev_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev)
+    prev_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev, template)
 
 
 def download_link(url, nocache=False):
@@ -157,8 +205,15 @@ def get_mpd(url, download_prev=False):
     vrepresentations = []
     arepresentations = []
 
+    global ns_schema
+    ns_schema = '{' + str(mpd[0].nsmap[None]) + '}'
+
+    period = mpd.find(_add_ns("Period"))
+    roottemplate = get_template(period)
+
     adaptationsets = mpd.find(_add_ns("Period")).findall(_add_ns("AdaptationSet"))
     for adaptation in adaptationsets:
+        adaptation_mime = str(adaptation.attrib.get("mimeType")).split("/")[0]
         for representation in adaptation.findall(_add_ns("Representation")):
             mime = str(representation.attrib.get("mimeType")).split("/")[0]
             if mime == "video":
@@ -166,13 +221,18 @@ def get_mpd(url, download_prev=False):
             elif mime == "audio":
                 arepresentations.append(representation)
             else:
-                print("Invalid mime type: " + str(representation.attrib.get("mimeType")))
+                if adaptation_mime == "video":
+                    vrepresentations.append(representation)
+                elif adaptation_mime == "audio":
+                    arepresentations.append(representation)
+                else:
+                    print("Invalid mime type: " + str(representation.attrib.get("mimeType")))
 
     vrepresentation = choose_representation(vrepresentations)
     arepresentation = choose_representation(arepresentations)
 
-    vlinks = get_representation_links(url, vrepresentation)
-    alinks = get_representation_links(url, arepresentation)
+    vlinks = get_representation_links(url, vrepresentation, roottemplate)
+    alinks = get_representation_links(url, arepresentation, roottemplate)
 
     links = vlinks + alinks
 
@@ -183,7 +243,7 @@ def get_mpd(url, download_prev=False):
 
     # maybe thread this?
     if download_prev or True:
-        download_prev_representation(url, vrepresentation, arepresentation, not download_prev)
+        download_prev_representation(url, vrepresentation, arepresentation, not download_prev, roottemplate)
         #print("Done prev in main thread")
 
     return {
@@ -275,6 +335,11 @@ def stitch_files(url, output, cleanup=False):
             os.remove(f)
         for f in audio:
             os.remove(f)
+
+    if retval and "live_hook" in util.tokens and len(util.tokens["live_hook"]) > 0:
+        hook = util.tokens["live_hook"]
+        hook.append(output)
+        subprocess.check_call(hook)
 
 
 def download_stream(url):
