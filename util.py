@@ -85,10 +85,13 @@ def download_real(url, *args, **kwargs):
     else:
         request = urllib.request.Request(url)
 
-    request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
-    request.add_header('Pragma', 'no-cache')
-    request.add_header('Cache-Control', 'max-age=0')
-    request.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
+    if "noheaders" in kwargs and kwargs["noheaders"]:
+        pass
+    else:
+        request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
+        request.add_header('Pragma', 'no-cache')
+        request.add_header('Cache-Control', 'max-age=0')
+        request.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
 
     with urllib.request.urlopen(request, timeout=30) as response:
         charset = response.headers.get_content_charset()
@@ -207,9 +210,9 @@ def download_file(url, output):
 
     return retval
 
-def download(url):
+def download(url, *args, **kwargs):
     #return re.sub(r"^.*?<html", "<html", download_real(url), flags=re.S)
-    return download_real(url)
+    return download_real(url, *args, **kwargs)
 
 
 if __name__ == "__main__":
@@ -239,6 +242,7 @@ class Logger(object):
                 self.log.write(message)
             except Exception:
                 pass
+        self.flush()
 
     def flush(self):
         self.terminal.flush()
@@ -252,6 +256,10 @@ class Logger(object):
 defaultlogpath = os.path.expanduser('~/.cache/dlscripts/')
 os.makedirs(defaultlogpath, exist_ok=True)
 
-if tokens.get("log") is True:
+
+def enable_logging():
     sys.stdout = Logger(sys.stdout, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".olog")
     sys.stderr = Logger(sys.stderr, defaultlogpath + str(datetime.datetime.now().isoformat()) + "." + str(os.getpid()) + ".elog")
+
+if tokens.get("log") is True:
+    enable_logging()

@@ -11,6 +11,7 @@ import subprocess
 import argparse
 
 
+util.enable_logging()
 defaultoutputdir = '~/.cache/iglivedl/'  # "output"
 outputdir = os.path.expanduser(defaultoutputdir)
 verbose = 1
@@ -25,6 +26,7 @@ downloading = {}
 
 lastmpd = None
 lastcount = 0
+lastdownload = 0
 
 lastcount_thresh = 30
 
@@ -51,6 +53,7 @@ def download_mpd(url):
         tree = util.etree.fromstring(data)
         return tree
     except Exception as e:
+        print("Error downloading mpd:")
         print(e)
         return None
 
@@ -139,6 +142,9 @@ def download_prev_representation_real(url, vrepresentation, arepresentation, unt
     s = timeline.find(_add_ns("S"))
     time = int(s.attrib.get("t"))
     d = int(s.attrib.get("d"))
+    if d <= 0:
+        print("Warning: d <= 0, skipping prev")
+        return
 
     i = time
     errors = 0
@@ -181,6 +187,10 @@ def download_link(url, nocache=False):
             return 200
 
         downloading[url] = True
+
+        global lastdownload
+        lastdownload = time.monotonic()
+
         if verbose >= 1:
             print("Downloading " + url)
         retval = util.download_file(url, output)
@@ -191,7 +201,7 @@ def download_link(url, nocache=False):
         del downloading[url]
         return retval
     else:
-        if verbose >= 2:
+        if verbose >= 3:
             print("Skipping " + url)
         return 304
     return 200
@@ -245,6 +255,10 @@ def get_mpd(url, download_prev=False):
     if download_prev or True:
         download_prev_representation(url, vrepresentation, arepresentation, not download_prev, roottemplate)
         #print("Done prev in main thread")
+
+    if lastdownload > 0 and (time.monotonic() - lastdownload) > (60*30):
+        print("lastdownload timeout: " + str(time.monotonic()) + " " + str(lastdownload) + " (" + str(time.monotonic() - lastdownload) + ")")
+        return None
 
     return {
         "running": mpd.attrib.get("type") == "dynamic",
@@ -343,20 +357,39 @@ def stitch_files(url, output, cleanup=False):
 
 
 def download_stream(url):
+    print("Downloading stream: " + str(url))
+
     running = True
     first = True
+    errors = 0
     while running:
         if verbose >= 2:
             print("loop")
         out = get_mpd(url, first)
         if not out:
-            break
+            print("No mpd (probably done?): " + int(errors))
+            errors = errors + 1
+            if errors > 10:
+                break
+            time.sleep(5)
+            continue
+
         running = out["running"]
         first = False
+        waitamt = out["wait"]
+        if waitamt > 10:
+            print("Warning: wait amount > 10s: " + str(waitamt))
+            waitamt = 10
+        if waitamt < 0:
+            print("Warning: wait amount < 0s: " + str(waitamt))
+            continue
         time.sleep(out["wait"])
 
+    print("Done, waiting for completion")
     prev_pool.wait_completion()
+    print("Done prev pool, waiting for main pool")
     main_pool.wait_completion()
+    print("All done")
 
 
 def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto"):
