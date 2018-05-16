@@ -9,6 +9,7 @@ import shutil
 import re
 import subprocess
 import argparse
+import natsort
 
 
 util.enable_logging()
@@ -128,11 +129,11 @@ def download_prev_representation_real(url, vrepresentation, arepresentation, unt
     atemplate = template
 
     newtemplate = get_template(vrepresentation)
-    if newtemplate:
+    if newtemplate is not None:
         vtemplate = newtemplate
 
     newtemplate = get_template(arepresentation)
-    if newtemplate:
+    if newtemplate is not None:
         atemplate = newtemplate
 
     #vtemplate = vrepresentation.find(_add_ns("SegmentTemplate"))
@@ -309,8 +310,8 @@ def stitch_files(url, output, cleanup=False):
     video_orig = sorted(video)
     audio_orig = sorted(audio)
 
-    video = remove_singles(video_orig, audio)
-    audio = remove_singles(audio_orig, video)
+    video = natsort.natsorted(remove_singles(video_orig, audio))
+    audio = natsort.natsorted(remove_singles(audio_orig, video))
 
     initfile = os.path.join(outputdir, mediaid + "-init")
     if (not os.path.exists(initfile + ".m4v")
@@ -367,7 +368,7 @@ def download_stream(url):
             print("loop")
         out = get_mpd(url, first)
         if not out:
-            print("No mpd (probably done?): " + int(errors))
+            print("No mpd (probably done?): " + str(errors))
             errors = errors + 1
             if errors > 10:
                 break
@@ -396,6 +397,7 @@ def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto"
     global outputdir
     outputdir = os.path.expanduser(cachedir)
     os.makedirs(outputdir, exist_ok=True)
+    print("Output: " + str(output))
 
     if stitch:
         stitch_files(url, output, cleanup=cleanup)

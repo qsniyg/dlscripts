@@ -942,10 +942,18 @@ if __name__ == "__main__":
 
             suffix = getsuffix(i, entry["videos"])
 
-            url = quote_url(video["video"])
-            mymatch = re.match(r".*twitter.com/i/videos/(?P<id>[0-9]*)", url)
+            video_urls = video["video"]
+            if type(video_urls) not in (list, tuple):
+                video_urls = [video_urls]
+            if len(video_urls) == 0:
+                print("0 videos")
+                continue
+            urls = []
+            for video_url in video_urls:
+                urls.append(quote_url(video_url))
+            mymatch = re.match(r".*twitter.com/i/videos/(?P<id>[0-9]*)", urls[0])
             if mymatch:
-                url = "http://twitter.com/i/videos/tweet/%s" % mymatch.group("id")
+                urls[0] = "http://twitter.com/i/videos/tweet/%s" % mymatch.group("id")
 
             output = "(%s)%s%s" % (newdate, newcaption, suffix)
             fullout = thedir + output
@@ -993,7 +1001,7 @@ if __name__ == "__main__":
 
                 livelocks.append(livelock)
 
-                cmdline = ["python", os.path.join(os.path.dirname(__file__), "iglivedl.py"), url, "--output", fullout]
+                cmdline = ["python", os.path.join(os.path.dirname(__file__), "iglivedl.py"), urls[0], "--output", fullout]
 
                 if "no_live_cleanup" in util.tokens and util.tokens["no_live_cleanup"]:
                     cmdline.append("--no-cleanup")
@@ -1005,15 +1013,15 @@ if __name__ == "__main__":
             sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            if (jsond["config"]["generator"] == "instagram" and "/f/instagram/v/" in url) or url.endswith(".mp4"):
-                if not url.endswith(".mp4"):
+            if (jsond["config"]["generator"] == "instagram" and "/f/instagram/v/" in urls[0]) or urls[0].endswith(".mp4"):
+                if not urls[0].endswith(".mp4"):
                     fullout = fullout + ".mp4"
 
                 #if os.path.exists(fullout):
                 if video_exists(output, dirs):
                     continue
 
-                download_video(pool, url, fullout)
+                download_video(pool, urls, fullout)
             else:
                 newfullout = fullout + ".%(ext)s"
 
@@ -1026,7 +1034,7 @@ if __name__ == "__main__":
 
                 livelocks.append(livelock)
 
-                run_subprocess(["youtube-dl", url, "-o", newfullout])
+                run_subprocess(["youtube-dl", urls[0], "-o", newfullout])
 
             #print("Downloaded video " + output + " (%i/%i)" % (our_id, all_entries))
             print("Done")
