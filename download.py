@@ -165,7 +165,7 @@ def quote_url(link):
 def getrequest(url, *args, **kargs):
     request = urllib.request.Request(quote_url(url))
     if (".photobucket.com" not in url and
-       ".tinypic.com" not in url):
+        ".tinypic.com" not in url):
         request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
         request.add_header('Pragma', 'no-cache')
         request.add_header('Cache-Control', 'max-age=0')
@@ -297,7 +297,9 @@ def download_real(url, output, options):
 
                     if content_type in content_type_table:
                         extension = content_type_table[content_type]
-                    elif content_type != "text/plain" and content_type != response.headers.get_default_type():
+                    elif (content_type != "text/plain"
+                          and content_type != response.headers.get_default_type()
+                          and content_type != "application/octet-stream"):
                         extension = splitted[1]
                     elif addext:
                         extension = addext
@@ -940,6 +942,10 @@ if __name__ == "__main__":
                 live_video = True
                 #continue
 
+            streamlink_live = False
+            if "live_streamlink" in video and video["live_streamlink"]:
+                streamlink_live = True
+
             suffix = getsuffix(i, entry["videos"])
 
             video_urls = video["video"]
@@ -1010,11 +1016,40 @@ if __name__ == "__main__":
                 print("Done")
                 continue
 
+            if streamlink_live:
+                if "no_livedl" in jsond["config"] and jsond["config"]["no_livedl"]:
+                    continue
+
+                sys.stdout.write("[DL:LIVE] " + output + " (%i/%i)... " % (our_id, all_entries))
+                sys.stdout.flush()
+
+                fullout = fullout + ".mp4"
+
+                livelock = fullout + ".tdownload." + str(os.getpid())
+                open(livelock, 'a').close()
+
+                livelocks.append(livelock)
+
+                cmdline = ["streamlink", "--default-stream", "best", "--hls-live-restart"]
+
+                if "headers" in video and type(video["headers"]) == dict:
+                    for header in video["headers"]:
+                        cmdline.append("--http-header")
+                        cmdline.append(header + "=" + video["headers"][header])
+
+                cmdline.append(urls[0])
+                cmdline.append("-o")
+                cmdline.append(fullout)
+
+                run_subprocess(cmdline)
+                print("Done")
+                continue
+
             sys.stdout.write("[DL:VIDEO] " + output + " (%i/%i)... " % (our_id, all_entries))
             sys.stdout.flush()
 
-            if (jsond["config"]["generator"] == "instagram" and "/f/instagram/v/" in urls[0]) or urls[0].endswith(".mp4"):
-                if not urls[0].endswith(".mp4"):
+            if (jsond["config"]["generator"] == "instagram" and "/f/instagram/v/" in urls[0]) or re.search(r"\.mp4(?:\?.*)?$", urls[0]):
+                if not re.search(r"\.mp4(?:\?.*)?$", urls[0]):
                     fullout = fullout + ".mp4"
 
                 #if os.path.exists(fullout):
@@ -1034,7 +1069,14 @@ if __name__ == "__main__":
 
                 livelocks.append(livelock)
 
-                run_subprocess(["youtube-dl", urls[0], "-o", newfullout])
+                cmdline = ["youtube-dl", urls[0], "-o", newfullout]
+
+                if "headers" in video and type(video["headers"]) == dict:
+                    for header in video["headers"]:
+                        cmdline.append("--add-header")
+                        cmdline.append(header + ":" + video["headers"][header])
+
+                run_subprocess(cmdline)
 
             #print("Downloaded video " + output + " (%i/%i)" % (our_id, all_entries))
             print("Done")

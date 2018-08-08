@@ -10,7 +10,7 @@ import re
 api_key = util.tokens["flickr_key"]
 api_secret = util.tokens["flickr_secret"]
 
-targetusername = 'angusT6_4eva'
+targetusername = None
 
 if len(sys.argv) > 1:
     targetusername = sys.argv[1]

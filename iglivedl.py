@@ -10,6 +10,8 @@ import re
 import subprocess
 import argparse
 import natsort
+import pprint
+import traceback
 
 
 util.enable_logging()
@@ -51,6 +53,9 @@ def download_mpd(url):
                 return None
         lastmpd = data
         lastcount = 0
+        outfile = open(os.path.join(outputdir, re.sub(r".*/([^/?]*)[^/]*?$", "\\1", url)), "wb")
+        outfile.write(data)
+        outfile.close()
         tree = util.etree.fromstring(data)
         return tree
     except Exception as e:
@@ -67,6 +72,29 @@ def choose_representation(representations):
         if bandwidth > max_bandwidth:
             max_bandwidth = bandwidth
             curr = representation
+    if curr is None:
+        try:
+            max_total = 0
+            for representation in representations:
+                if representation.attrib.get("width") is not None:
+                    width = int(representation.attrib.get("width"))
+                    height = int(representation.attrib.get("height"))
+                    framerate = int(representation.attrib.get("frameRate"))
+
+                    total = width * height * framerate
+                else:
+                    samplerate = int(representation.attrib.get("audioSamplingRate"))
+                    total = samplerate
+
+                if total > max_total:
+                    max_total = total
+                    curr = representation
+        except Exception as e:
+            #print(e)
+            traceback.print_exc()
+    if curr is None:
+        print("No curr!")
+        pprint.pprint(representations)
     return curr
 
 
@@ -208,7 +236,7 @@ def download_link(url, nocache=False):
     return 200
 
 
-def get_mpd(url, download_prev=False):
+def get_mpd(url, download_prev=False, nosave=False):
     mpd = download_mpd(url)
     if mpd is None:
         return None
@@ -246,6 +274,13 @@ def get_mpd(url, download_prev=False):
     alinks = get_representation_links(url, arepresentation, roottemplate)
 
     links = vlinks + alinks
+
+    if nosave:
+        print(util.etree.tostring(vrepresentation))
+        print(util.etree.tostring(arepresentation))
+        pprint.pprint(vlinks)
+        pprint.pprint(alinks)
+        return
 
     for link in links:
         main_pool.add_task(download_link, link, True)
@@ -357,7 +392,7 @@ def stitch_files(url, output, cleanup=False):
         subprocess.check_call(hook)
 
 
-def download_stream(url):
+def download_stream(url, nosave=False):
     print("Downloading stream: " + str(url))
 
     running = True
@@ -366,7 +401,7 @@ def download_stream(url):
     while running:
         if verbose >= 2:
             print("loop")
-        out = get_mpd(url, first)
+        out = get_mpd(url, first, nosave=nosave)
         if not out:
             print("No mpd (probably done?): " + str(errors))
             errors = errors + 1
@@ -393,7 +428,7 @@ def download_stream(url):
     print("All done")
 
 
-def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto"):
+def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto", nosave=False):
     global outputdir
     outputdir = os.path.expanduser(cachedir)
     os.makedirs(outputdir, exist_ok=True)
@@ -403,7 +438,7 @@ def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto"
         stitch_files(url, output, cleanup=cleanup)
         return
 
-    download_stream(url)
+    download_stream(url, nosave=nosave)
 
     stitch_files(url, output, cleanup=cleanup)
 
@@ -415,9 +450,10 @@ def main():
     parser.add_argument('--no-cleanup', dest='cleanup', action='store_false', help="Don't clean up after downloading")
     parser.add_argument('--cache-dir', dest='cachedir', default=defaultoutputdir, help="Cache directory")
     parser.add_argument('--output', default='auto', help='Output file')
+    parser.add_argument('--no-save', dest='nosave', action='store_true', help='Test run')
     args = parser.parse_args()
 
-    run(args.url, stitch=args.stitch, cleanup=args.cleanup, cachedir=args.cachedir, output=args.output)
+    run(args.url, stitch=args.stitch, cleanup=args.cleanup, cachedir=args.cachedir, output=args.output, nosave=args.nosave)
 
 
 if __name__ == "__main__":
