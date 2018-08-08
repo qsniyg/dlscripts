@@ -1,0 +1,2 @@
+python-magic==0.4.13
+pillow==5.1.0
