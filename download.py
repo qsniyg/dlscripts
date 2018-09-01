@@ -23,7 +23,7 @@ import util
 import redis
 
 windows_path = False
-if "windows" in util.tokens and util.tokens["windows"] == 1:
+if "windows" in util.tokens and (util.tokens["windows"] == 1 or util.tokens["windows"] is True):
     windows_path = True
 
 thresh_processes = 10
@@ -855,12 +855,12 @@ if __name__ == "__main__":
             suffix = getsuffix(i, entry["images"])
 
             #output = "(%s)%s%s%s" % (newdate, newcaption, suffix, dotext)
-            output = "(%s)%s%s" % (newdate, newcaption, suffix)
+            output = sanitize_path("(%s)%s%s" % (newdate, newcaption, suffix))
 
             similaroutput = None
             if "similarcaption" in entry:
                 newsimilarcaption = sanitize_caption(entry["similarcaption"], entry)
-                similaroutput = "(%s)%s%s" % (newdate, newsimilarcaption, suffix)
+                similaroutput = sanitize_path("(%s)%s%s" % (newdate, newsimilarcaption, suffix))
 
             fullout = thedir + output
 
@@ -961,7 +961,7 @@ if __name__ == "__main__":
             if mymatch:
                 urls[0] = "http://twitter.com/i/videos/tweet/%s" % mymatch.group("id")
 
-            output = "(%s)%s%s" % (newdate, newcaption, suffix)
+            output = sanitize_path("(%s)%s%s" % (newdate, newcaption, suffix))
             fullout = thedir + output
 
             exists = False
