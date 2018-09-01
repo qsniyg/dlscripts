@@ -591,7 +591,7 @@ def geturl(url):
 
 def sanitize_path(text):
     if windows_path:
-        return text.rstrip(".").rstrip(" ")
+        return text.rstrip(".").rstrip(" ").replace(":", "-").replace('"', "'").replace("<", "(lt)").replace(">", "(gt)").replace("\\", " (bslash) ").replace("|", "(pipe)").replace("?", "(qmark)").replace("*", "(asterisk)")
     return text
 
 def remext(file1):
