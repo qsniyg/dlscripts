@@ -1007,7 +1007,7 @@ if __name__ == "__main__":
 
                 livelocks.append(livelock)
 
-                cmdline = ["python", os.path.join(os.path.dirname(__file__), "iglivedl.py"), urls[0], "--output", fullout]
+                cmdline = [sys.executable, os.path.join(os.path.dirname(__file__), "iglivedl.py"), urls[0], "--output", fullout]
 
                 if "no_live_cleanup" in util.tokens and util.tokens["no_live_cleanup"]:
                     cmdline.append("--no-cleanup")

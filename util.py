@@ -85,6 +85,11 @@ def download_real(url, *args, **kwargs):
     else:
         request = urllib.request.Request(url)
 
+    if "timeout" in kwargs:
+        download_timeout = kwargs["timeout"]
+    else:
+        download_timeout = 30
+
     if "noheaders" in kwargs and kwargs["noheaders"]:
         pass
     else:
@@ -93,7 +98,7 @@ def download_real(url, *args, **kwargs):
         request.add_header('Cache-Control', 'max-age=0')
         request.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
 
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=download_timeout) as response:
         charset = response.headers.get_content_charset()
 
         if charset:

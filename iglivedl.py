@@ -12,6 +12,7 @@ import argparse
 import natsort
 import pprint
 import traceback
+import datetime
 
 
 util.enable_logging()
@@ -44,7 +45,7 @@ def download_mpd(url):
     global lastmpd
     global lastcount
     try:
-        data = util.download(url)
+        data = util.download(url, timeout=10)
         if lastmpd == data:
             lastcount = lastcount + 1
             if (verbose >= 1 and lastcount > 2) or verbose >= 2:
@@ -79,7 +80,7 @@ def choose_representation(representations):
                 if representation.attrib.get("width") is not None:
                     width = int(representation.attrib.get("width"))
                     height = int(representation.attrib.get("height"))
-                    framerate = int(representation.attrib.get("frameRate"))
+                    framerate = float(representation.attrib.get("frameRate"))
 
                     total = width * height * framerate
                 else:
@@ -209,6 +210,7 @@ def download_link(url, nocache=False):
     if url in cache and not nocache:
         return cache[url]
 
+    now = str(datetime.datetime.now())
     basename = os.path.basename(url)
     output = os.path.join(outputdir, basename)
     if not os.path.exists(output):
@@ -221,7 +223,7 @@ def download_link(url, nocache=False):
         lastdownload = time.monotonic()
 
         if verbose >= 1:
-            print("Downloading " + url)
+            print(now + " Downloading " + url)
         retval = util.download_file(url, output)
         if retval == 200:
             cache[url] = 304
@@ -231,7 +233,7 @@ def download_link(url, nocache=False):
         return retval
     else:
         if verbose >= 3:
-            print("Skipping " + url)
+            print(now + " Skipping " + url)
         return 304
     return 200
 
@@ -401,25 +403,30 @@ def download_stream(url, nosave=False):
     while running:
         if verbose >= 2:
             print("loop")
-        out = get_mpd(url, first, nosave=nosave)
-        if not out:
-            print("No mpd (probably done?): " + str(errors))
-            errors = errors + 1
-            if errors > 10:
-                break
-            time.sleep(5)
-            continue
+        try:
+            out = get_mpd(url, first, nosave=nosave)
+            if not out:
+                print("No mpd (probably done?): " + str(errors))
+                errors = errors + 1
+                if errors > 10:
+                    break
+                time.sleep(5)
+                continue
 
-        running = out["running"]
-        first = False
-        waitamt = out["wait"]
-        if waitamt > 10:
-            print("Warning: wait amount > 10s: " + str(waitamt))
-            waitamt = 10
-        if waitamt < 0:
-            print("Warning: wait amount < 0s: " + str(waitamt))
-            continue
-        time.sleep(out["wait"])
+            running = out["running"]
+            first = False
+            waitamt = out["wait"]
+            if waitamt > 10:
+                print("Warning: wait amount > 10s: " + str(waitamt))
+                waitamt = 10
+            if waitamt < 0:
+                print("Warning: wait amount < 0s: " + str(waitamt))
+                continue
+            time.sleep(out["wait"])
+        except Exception as e:
+            print("Error in main loop:")
+            print(e)
+            time.sleep(1)
 
     print("Done, waiting for completion")
     prev_pool.wait_completion()
