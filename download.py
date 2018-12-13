@@ -412,10 +412,21 @@ def check_redis(url):
     except:
         return None
 
+    expire_redis(key)
+
     if b"meta" in val and val[b"meta"] == meta:
         if b"times" in val and int(val[b"times"]) >= thresh_redis_check:
             return True
     return False
+
+def expire_redis(key):
+    if not rinstance:
+        return
+
+    try:
+        rinstance.expire(key, 60*60*24*7)
+    except:
+        return
 
 def update_redis(url):
     if not rinstance:
@@ -437,6 +448,7 @@ def update_redis(url):
         }
 
     rinstance.hmset(key, val)
+    expire_redis(key)
 
 
 def check_image(url):
