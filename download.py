@@ -21,6 +21,7 @@ import binascii
 sys.path.append(".")
 import util
 import redis
+import errno
 
 windows_path = False
 if "windows" in util.tokens and (util.tokens["windows"] == 1 or util.tokens["windows"] is True):
@@ -670,8 +671,48 @@ def get_pid(name):
 import time
 
 
-def process_exists(pid):
+def process_exists_proc(pid):
     return os.path.exists("/proc/" + str(pid))
+
+
+# https://stackoverflow.com/a/6940314
+def pid_exists(pid):
+    """Check whether pid exists in the current process table.
+    UNIX only.
+    """
+    try:
+        pid = int(pid)
+    except Exception as err:
+        print(err)
+        return True
+
+    if pid < 0:
+        return False
+    if pid == 0:
+        # According to "man 2 kill" PID 0 refers to every process
+        # in the process group of the calling process.
+        # On certain systems 0 is a valid PID but we have no way
+        # to know that in a portable fashion.
+        raise ValueError('invalid PID 0')
+    try:
+        os.kill(pid, 0)
+    except OSError as err:
+        if err.errno == errno.ESRCH:
+            # ESRCH == No such process
+            return False
+        elif err.errno == errno.EPERM:
+            # EPERM clearly means there's a process to deny access to
+            return True
+        else:
+            # According to "man 2 kill" possible error values are
+            # (EINVAL, EPERM, ESRCH)
+            raise
+    else:
+        return True
+
+
+def process_exists(pid):
+    return pid_exists(pid)
 
 
 subprocesses = []
@@ -692,8 +733,9 @@ def get_processes_amt():
     for file in files:
         if file.startswith(".tdownload."):
             process = file.split(".")[-1]
-            if not os.path.exists("/proc/" + process):
-                print("/tmp/" + file + " doesn't exist")
+            #if not os.path.exists("/proc/" + process):
+            if not process_exists(process):
+                print("Process for /tmp/" + file + " doesn't exist")
                 try:
                     os.unlink("/tmp/" + file)
                 except Exception as e:
