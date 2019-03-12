@@ -27,7 +27,7 @@ windows_path = False
 if "windows" in util.tokens and (util.tokens["windows"] == 1 or util.tokens["windows"] is True):
     windows_path = True
 
-thresh_processes = 10
+thresh_processes = 15
 thresh_sleep_times = 600
 
 if "thresh_processes" in util.tokens and util.tokens["thresh_processes"]:
@@ -1084,7 +1084,7 @@ if __name__ == "__main__":
 
                 livelocks.append(livelock)
 
-                cmdline = ["streamlink", "--default-stream", "best", "--hls-live-restart"]
+                cmdline = ["streamlink", "--default-stream", "best", "--hls-live-restart", "--hls-segment-threads", "3"]
 
                 if "headers" in video and type(video["headers"]) == dict:
                     for header in video["headers"]:

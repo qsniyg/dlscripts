@@ -110,7 +110,8 @@ def download_real(url, *args, **kwargs):
 def getrequest(url, *args, **kargs):
     request = urllib.request.Request(quote_url(url))
     if (".photobucket.com" not in url and
-       ".tinypic.com" not in url):
+        ".tinypic.com" not in url and
+       (".fbcdn.net" not in url and "/instagram." not in url)):
         request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
         request.add_header('Pragma', 'no-cache')
         request.add_header('Cache-Control', 'max-age=0')

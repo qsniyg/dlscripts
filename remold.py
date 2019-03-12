@@ -12,12 +12,13 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-timethresh = 3 * (60 * 60 * 24)
+timethresh = 2 * (60 * 60 * 24)
 
 files = os.listdir(sys.argv[1])
 remfiles = []
 now = datetime.datetime.now().timestamp()
 remsize = 0
+totalsize = 0
 earliest = None
 latest = None
 for file in files:
@@ -26,14 +27,17 @@ for file in files:
     if earliest is None or s.st_ctime < earliest:
         earliest = s.st_ctime
 
+    filesize = os.path.getsize(file)
+    totalsize += filesize
+
     if (((now - s.st_ctime) >= timethresh) and
         ((now - s.st_mtime) >= timethresh)):
         remfiles.append(file)
-        remsize += os.path.getsize(file)
+        remsize += filesize
         if latest is None or s.st_ctime > latest:
             latest = s.st_ctime
 
-sys.stderr.write(str(len(remfiles)) + " files to remove, " + str(len(files)) + " total, -" + sizeof_fmt(remsize) + "\n")
+sys.stderr.write(str(len(remfiles)) + " files to remove, " + str(len(files)) + " total, -" + sizeof_fmt(remsize) + " (" + sizeof_fmt(totalsize) + " total)\n")
 sys.stderr.write("Earliest: " + time.ctime(earliest) + "\nLatest: " + time.ctime(latest) + "\n")
 hours = (latest - earliest) / 60 / 60
 sys.stderr.write('%.2f' % (hours) + " hours (~" + sizeof_fmt(remsize / (hours / 24)) + "/day)\n")

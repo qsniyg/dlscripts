@@ -206,12 +206,16 @@ def download_prev_representation(url, vrepresentation, arepresentation, until_pr
     prev_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev, template)
 
 
+def remquery(url):
+    return re.sub(r"[?#].*$", "", url)
+
+
 def download_link(url, nocache=False):
     if url in cache and not nocache:
         return cache[url]
 
     now = str(datetime.datetime.now())
-    basename = os.path.basename(url)
+    basename = remquery(os.path.basename(url))
     output = os.path.join(outputdir, basename)
     if not os.path.exists(output):
         if url in downloading and downloading[url]:
@@ -426,6 +430,7 @@ def download_stream(url, nosave=False):
                 time.sleep(5)
                 continue
 
+            errors = 0
             running = out["running"]
             first = False
             waitamt = out["wait"]
