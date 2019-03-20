@@ -1018,6 +1018,15 @@ if __name__ == "__main__":
             output = sanitize_path("(%s)%s%s" % (newdate, newcaption, suffix))
             fullout = thedir + output
 
+            if "coauthors" in entry and type(entry["coauthors"]) == list:
+                try:
+                    for coauthor in entry["coauthors"]:
+                        coauthor_filename = fullout + ".mp4.coauthor." + coauthor
+                        if not os.path.exists(coauthor_filename):
+                            open(coauthor_filename, 'a').close()
+                except Exception:
+                    pass
+
             exists = False
             for file_ in files:
                 fullpath = os.path.join(thedir, file_)
