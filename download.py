@@ -1,27 +1,27 @@
 import sys
-import json
+#import json
 import urllib.parse
-import urllib.request
-import shutil
+#import urllib.request
+#import shutil
 import datetime
 import re
 import subprocess
 import os
 import os.path
-import glob
+#import glob
 import signal
 import threading
 import queue
 import pprint
-import http.client
-import PIL.Image
-import magic
+#import http.client
+#import PIL.Image
+#import magic
 import hashlib
 import binascii
-sys.path.append(".")
-import util
 import redis
 import errno
+sys.path.append(".")
+import util
 
 windows_path = False
 if "windows" in util.tokens and (util.tokens["windows"] == 1 or util.tokens["windows"] is True):
@@ -164,6 +164,7 @@ def quote_url(link):
     return link
 
 def getrequest(url, *args, **kargs):
+    import urllib.request
     request = urllib.request.Request(quote_url(url))
     if (".photobucket.com" not in url and
         ".tinypic.com" not in url):
@@ -221,6 +222,9 @@ def fix_tumblr(x):
 def download_real(url, output, options):
     if not running:
         return
+
+    import urllib.request
+    import http.client
 
     if not options:
         options = {
@@ -461,6 +465,7 @@ def check_image(url):
         if os.stat(url).st_size == 0:
             return False
 
+        import PIL.Image
         image = PIL.Image.open(url)
         if image.format == "JPEG":
             image.load()
@@ -487,6 +492,8 @@ def check_video(url):
 
     if url.endswith(".part"):
         return False
+
+    import magic
 
     our_magic = magic.from_file(url, mime=True)
     if not our_magic:
@@ -595,6 +602,7 @@ def download_video(pool, url, output, options = None, *args, **kwargs):
 
 
 def geturl(url):
+    import urllib.request
     try:
         req = urllib.request.Request(url, method="HEAD")
         resp = urllib.request.urlopen(req)
@@ -792,7 +800,8 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    jsond = json.loads(myjson)
+    #jsond = json.loads(myjson)
+    jsond = util.ujson.loads(myjson)
     #print(jsond)
 
     if "no_dl" in jsond["config"] and jsond["config"]["no_dl"]:

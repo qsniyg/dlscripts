@@ -5,7 +5,7 @@ except ImportError:
 import os
 import urllib
 import urllib.parse
-import urllib.request
+#import urllib.request
 import http
 import queue
 import threading
@@ -14,26 +14,27 @@ import datetime
 
 running = True
 
-try:
-    from lxml import etree
-except ImportError:
+if False:
     try:
-        # Python 2.5
-        import xml.etree.cElementTree as etree
+        from lxml import etree
     except ImportError:
         try:
             # Python 2.5
-            import xml.etree.ElementTree as etree
+            import xml.etree.cElementTree as etree
         except ImportError:
             try:
-                # normal cElementTree install
-                import cElementTree as etree
+                # Python 2.5
+                import xml.etree.ElementTree as etree
             except ImportError:
                 try:
-                    # normal ElementTree install
-                    import elementtree.ElementTree as etree
+                    # normal cElementTree install
+                    import cElementTree as etree
                 except ImportError:
-                    pass
+                    try:
+                        # normal ElementTree install
+                        import elementtree.ElementTree as etree
+                    except ImportError:
+                        pass
 
 
 def quote_url(link):
@@ -79,6 +80,8 @@ class ThreadPool:
 
 
 def download_real(url, *args, **kwargs):
+    import urllib.request
+
     url = quote_url(url)
     if "head" in kwargs and kwargs["head"]:
         request = urllib.request.Request(url, method="HEAD")
@@ -108,6 +111,8 @@ def download_real(url, *args, **kwargs):
 
 
 def getrequest(url, *args, **kargs):
+    import urllib.request
+
     request = urllib.request.Request(quote_url(url))
     if (".photobucket.com" not in url and
         ".tinypic.com" not in url and
@@ -122,6 +127,8 @@ def getrequest(url, *args, **kargs):
 
 
 def download_file(url, output):
+    import urllib.request
+
     running = True
     timeout_s = 30
     thresh_resume = 8

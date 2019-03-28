@@ -15,6 +15,29 @@ import traceback
 import datetime
 
 
+if True:
+    try:
+        from lxml import etree
+    except ImportError:
+        try:
+            # Python 2.5
+            import xml.etree.cElementTree as etree
+        except ImportError:
+            try:
+                # Python 2.5
+                import xml.etree.ElementTree as etree
+            except ImportError:
+                try:
+                    # normal cElementTree install
+                    import cElementTree as etree
+                except ImportError:
+                    try:
+                        # normal ElementTree install
+                        import elementtree.ElementTree as etree
+                    except ImportError:
+                        pass
+
+
 util.enable_logging()
 defaultoutputdir = '~/.cache/iglivedl/'  # "output"
 outputdir = os.path.expanduser(defaultoutputdir)
@@ -57,7 +80,7 @@ def download_mpd(url):
         outfile = open(os.path.join(outputdir, re.sub(r".*/([^/?]*)[^/]*?$", "\\1", url)), "wb")
         outfile.write(data)
         outfile.close()
-        tree = util.etree.fromstring(data)
+        tree = etree.fromstring(data)
         return tree
     except Exception as e:
         print("Error downloading mpd:")
@@ -282,8 +305,8 @@ def get_mpd(url, download_prev=False, nosave=False):
     links = vlinks + alinks
 
     if nosave:
-        print(util.etree.tostring(vrepresentation))
-        print(util.etree.tostring(arepresentation))
+        print(etree.tostring(vrepresentation))
+        print(etree.tostring(arepresentation))
         pprint.pprint(vlinks)
         pprint.pprint(alinks)
         return
