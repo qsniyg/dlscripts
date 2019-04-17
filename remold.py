@@ -12,7 +12,10 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-timethresh = 2 * (60 * 60 * 24)
+if "/dlscripts" in sys.argv[1]:
+    timethresh = 30 * (60 * 60 * 24)
+else:
+    timethresh = 2 * (60 * 60 * 24)
 
 files = os.listdir(sys.argv[1])
 remfiles = []

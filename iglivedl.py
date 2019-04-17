@@ -2,6 +2,7 @@ import sys
 sys.path.append(".")
 import util
 import urllib
+import urllib.error
 import os
 import os.path
 import time
@@ -47,6 +48,8 @@ cache = {}
 
 prev_pool = util.ThreadPool(2)
 prev_running = False
+next_pool = util.ThreadPool(2)
+next_running = False
 main_pool = util.ThreadPool(1)
 
 downloading = {}
@@ -54,6 +57,7 @@ downloading = {}
 lastmpd = None
 lastcount = 0
 lastdownload = 0
+is_gone = False
 
 lastcount_thresh = 30
 
@@ -69,6 +73,9 @@ def download_mpd(url):
     global lastcount
     try:
         data = util.download(url, timeout=10)
+        # This removes timestamps, which is more likely to be identical
+        # However, this could eliminate scenarios where the person is temporarily offline
+        #simpledata = re.sub(r"<MPD.*?>", "", str(x))
         if lastmpd == data:
             lastcount = lastcount + 1
             if (verbose >= 1 and lastcount > 2) or verbose >= 2:
@@ -82,6 +89,14 @@ def download_mpd(url):
         outfile.close()
         tree = etree.fromstring(data)
         return tree
+    except urllib.error.HTTPError as e:
+        print("Error downloading mpd (HTTPError):")
+        print(e)
+
+        if e.code == 410:
+            global is_gone
+            is_gone = True
+        return None
     except Exception as e:
         print("Error downloading mpd:")
         print(e)
@@ -173,9 +188,18 @@ def get_representation_links(url, representation, template):
     return links
 
 
-def download_prev_representation_real(url, vrepresentation, arepresentation, until_prev, template):
-    global prev_running
-    prev_running = True
+def download_prev_representation_real(url, vrepresentation, arepresentation, until_prev, template, prevnext=False):
+    def set_runningstate(value):
+        global prev_running
+        prev_running = value
+    if prevnext is True:
+        def set_runningstate(value):
+            global next_running
+            next_running = value
+
+    set_runningstate(True)
+    #global prev_running
+    #prev_running = True
 
     vtemplate = template
     atemplate = template
@@ -192,41 +216,68 @@ def download_prev_representation_real(url, vrepresentation, arepresentation, unt
     #atemplate = arepresentation.find(_add_ns("SegmentTemplate"))
     timeline = vtemplate.find(_add_ns("SegmentTimeline"))
 
-    s = timeline.find(_add_ns("S"))
+    s_es = timeline.findall(_add_ns("S"))
+    if len(s_es) == 0:
+        print("Warning: len(s_es) == 0")
+        return
+
+    s = None
+    err_thresh = 10
+
+    if not prevnext:
+        s = s_es[0]
+    else:
+        s = s_es[-1]
+        err_thresh = 1
+
     time = int(s.attrib.get("t"))
     d = int(s.attrib.get("d"))
     if d <= 0:
-        print("Warning: d <= 0, skipping prev")
+        print("Warning: d <= 0, skipping prev/next")
         return
 
     i = time
     errors = 0
     while i > 0:
-        i = i - d
+        if not prevnext:
+            i = i - d
+        else:
+            i = i + d
         if i < 0:
-            prev_running = False
+            #prev_running = False
+            set_runningstate(False)
             return
         #retcode = download_link(parse_link(url, vtemplate.attrib.get("media"), time=str(i)))
         retcode = download_link(get_link(url, vtemplate, vrepresentation, time=str(i)))
         if retcode != 200:
             if retcode != 304 or until_prev:
                 if retcode == 410:
-                    prev_running = False
+                    #prev_running = False
+                    set_runningstate(False)
                     return
                 errors = errors + 1
-                if errors > 10:
-                    prev_running = False
+                if errors > err_thresh:
+                    #prev_running = False
+                    set_runningstate(False)
                     return
                 continue
+            errors = 0
         #download_link(parse_link(url, atemplate.attrib.get("media"), time=str(i)))
         download_link(get_link(url, atemplate, arepresentation, time=str(i)))
-    prev_running = False
+    #prev_running = False
+    set_runningstate(False)
 
 
 def download_prev_representation(url, vrepresentation, arepresentation, until_prev, template):
     if prev_running and False:
         return
-    prev_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev, template)
+    prev_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev, template, False)
+
+
+def download_next_representation(url, vrepresentation, arepresentation, until_prev, template):
+    if next_running and False:
+        return
+    next_pool.add_task(download_prev_representation_real, url, vrepresentation, arepresentation, until_prev, template, True)
 
 
 def remquery(url):
@@ -319,6 +370,7 @@ def get_mpd(url, download_prev=False, nosave=False):
     # maybe thread this?
     if download_prev or True:
         download_prev_representation(url, vrepresentation, arepresentation, not download_prev, roottemplate)
+        download_next_representation(url, vrepresentation, arepresentation, not download_prev, roottemplate)
         #print("Done prev in main thread")
 
     if lastdownload > 0 and (time.monotonic() - lastdownload) > (60*30):
@@ -446,11 +498,12 @@ def download_stream(url, nosave=False):
         try:
             out = get_mpd(url, first, nosave=nosave)
             if not out:
-                print("No mpd (probably done?): " + str(errors))
+                now = str(datetime.datetime.now())
+                print(now + " No mpd (probably done?): " + str(errors))
                 errors = errors + 1
                 if errors > 10:
                     break
-                time.sleep(5)
+                time.sleep(4)
                 continue
 
             errors = 0
@@ -469,11 +522,15 @@ def download_stream(url, nosave=False):
             print(e)
             time.sleep(1)
 
-    print("Done, waiting for completion")
+    now = str(datetime.datetime.now())
+    print(now + " Done, waiting for completion")
     prev_pool.wait_completion()
-    print("Done prev pool, waiting for main pool")
+    next_pool.wait_completion()
+    now = str(datetime.datetime.now())
+    print(now + " Done prev pool, waiting for main pool")
     main_pool.wait_completion()
-    print("All done")
+    now = str(datetime.datetime.now())
+    print(now + " All done")
 
 
 def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto", nosave=False):
