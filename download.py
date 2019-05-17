@@ -165,7 +165,8 @@ def quote_url(link):
 
 def getrequest(url, *args, **kargs):
     import urllib.request
-    request = urllib.request.Request(quote_url(url))
+    #request = urllib.request.Request(quote_url(url))
+    request = urllib.request.Request(url)
     if (".photobucket.com" not in url and
         ".tinypic.com" not in url):
         request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36')
@@ -1021,7 +1022,8 @@ if __name__ == "__main__":
                 continue
             urls = []
             for video_url in video_urls:
-                urls.append(quote_url(video_url))
+                #urls.append(quote_url(video_url))
+                urls.append(video_url)
             mymatch = re.match(r".*twitter.com/i/videos/(?P<id>[0-9]*)", urls[0])
             if mymatch:
                 urls[0] = "http://twitter.com/i/videos/tweet/%s" % mymatch.group("id")
