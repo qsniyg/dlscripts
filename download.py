@@ -810,6 +810,8 @@ if __name__ == "__main__":
     prefix = "~/Pictures/social/"
     if "prefix" in util.tokens:
         prefix = util.tokens["prefix"]
+    if "dl_prefix" in jsond["config"] and len(jsond["config"]["dl_prefix"]) > 0:
+        prefix = jsond["config"]["dl_prefix"]
     home = os.path.abspath(os.path.expanduser(prefix))
 
     generator = jsond["config"]["generator"]

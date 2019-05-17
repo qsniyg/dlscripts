@@ -15,7 +15,7 @@ def sizeof_fmt(num, suffix='B'):
 if "/dlscripts" in sys.argv[1]:
     timethresh = 30 * (60 * 60 * 24)
 else:
-    timethresh = 2 * (60 * 60 * 24)
+    timethresh = 1.5 * (60 * 60 * 24)
 
 files = os.listdir(sys.argv[1])
 remfiles = []
