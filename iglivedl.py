@@ -541,6 +541,7 @@ def run(url, stitch=True, cleanup=True, cachedir=defaultoutputdir, output="auto"
     outputdir = os.path.expanduser(cachedir)
     os.makedirs(outputdir, exist_ok=True)
     print("Output: " + str(output))
+    print("Cache: " + str(outputdir))
 
     if stitch:
         stitch_files(url, output, cleanup=cleanup)
