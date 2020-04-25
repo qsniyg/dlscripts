@@ -407,7 +407,7 @@ def remove_singles(array1, array2):
 
 
 def stitch_files(url, output, cleanup=False):
-    mediaid = re.sub(r".*/([0-9]+)[^/]*$", "\\1", url)
+    mediaid = re.sub(r".*/([0-9_]+)[^/]*$", "\\1", url)
     if mediaid == url:
         print("Unable to find media ID in: %s" % url)
     stitch_files_real(mediaid, output, cleanup)
