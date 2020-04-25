@@ -407,13 +407,15 @@ def remove_singles(array1, array2):
 
 
 def stitch_files(url, output, cleanup=False):
-    mediaid = re.sub(r".*/([0-9]*)[^/]*$", "\\1", url)
+    mediaid = re.sub(r".*/([0-9]+)[^/]*$", "\\1", url)
     if mediaid == url:
         print("Unable to find media ID in: %s" % url)
     stitch_files_real(mediaid, output, cleanup)
 
 
 def stitch_files_real(mediaid, output, cleanup=False):
+    print("Stitching for media ID: %s" % mediaid)
+
     video = []
     audio = []
 
@@ -431,6 +433,7 @@ def stitch_files_real(mediaid, output, cleanup=False):
     if len(video) == 0 and len(audio) == 0:
         for f in os.listdir(outputdir):
             if f.startswith(mediaid + "_") and re.search(r"_[0-9]+[-.]", f):
+                # This includes the [0-9]+ beginning, as the regex isn't r".*(_[0-9]+)"
                 newmediaid = re.sub(r"(_[0-9]+)[-.].*", "\\1", f)
                 print("Trying new media ID: %s" % newmediaid)
                 return stitch_files_real(newmediaid, output, cleanup)
@@ -445,7 +448,7 @@ def stitch_files_real(mediaid, output, cleanup=False):
     initfile = os.path.join(outputdir, mediaid + "-init")
     if (not os.path.exists(initfile + ".m4v")
         or not os.path.exists(initfile + ".m4a")):
-        print("No init file")
+        print("No init file for media ID: %s" % mediaid)
         return
 
     video.insert(0, initfile + ".m4v")
