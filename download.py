@@ -629,8 +629,11 @@ def fsify_base(text):
 def old_fsify(text):
     return sanitize_path(fsify_base(text)[:50])
 
-def fsify_album(text):
+def old_fsify_album(text):
     return sanitize_path(fsify_base(text)[:100].strip())
+
+def fsify_album(text):
+    return sanitize_path(fsify_base(text)[:200].strip())
 
 def sanitize_caption(entry_caption, entry):
     authorcaption = ""
@@ -641,7 +644,7 @@ def sanitize_caption(entry_caption, entry):
         newcaption = ""
     else:
         #oldcaption = " " + old_fsify(entry_caption)
-        newcaption = " " + authorcaption + old_fsify(entry_caption)
+        newcaption = " " + authorcaption + old_fsify_album(entry_caption)
 
     return newcaption
 
@@ -671,6 +674,8 @@ def image_exists(f, dirs):
     for d in dirs:
         for i in os.listdir(d):
             if similar_filename(i, f) and check_image(os.path.join(d, i)):
+                if debug:
+                    print("[DEBUG] Exists in " + d)
                 return True
     return False
 
@@ -727,9 +732,9 @@ def process_exists(pid):
 subprocesses = []
 
 
-def run_subprocess(arr):
+def run_subprocess(arr, wait=True):
     p = subprocess.Popen(arr)
-    if not do_async:
+    if not do_async or wait:
         p.wait()
     else:
         subprocesses.append(p)
@@ -878,7 +883,7 @@ if __name__ == "__main__":
         newdate = datetime.datetime.fromtimestamp(entry["date"]).isoformat()
 
         if "album" in entry and entry["album"]:
-            oldthedir = thedirbase + old_fsify(entry["album"]) + "/"
+            oldthedir = thedirbase + old_fsify_album(entry["album"]) + "/"
             thedir = thedirbase + fsify_album(entry["album"]) + "/"
 
             if not os.path.exists(thedir):
@@ -937,6 +942,8 @@ if __name__ == "__main__":
                     break
 
             if exists and not overwrite:
+                if debug:
+                    print("[DEBUG] exists")
                 continue
 
             similar = []
@@ -956,6 +963,9 @@ if __name__ == "__main__":
 
             renamed = False
             if exists:
+                if debug:
+                    print("[DEBUG] similar exists")
+
                 oext = getext(thedirbase + file_, True)
                 if not ext or True: # hackish
                     if oext:
@@ -1117,7 +1127,7 @@ if __name__ == "__main__":
                 cmdline.append("-o")
                 cmdline.append(fullout)
 
-                run_subprocess(cmdline)
+                run_subprocess(cmdline, wait=False)
                 print("Done")
                 continue
 
