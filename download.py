@@ -646,6 +646,15 @@ def sanitize_caption(entry_caption, entry):
         #oldcaption = " " + old_fsify(entry_caption)
         newcaption = " " + authorcaption + old_fsify_album(entry_caption)
 
+        try:
+            encoded = newcaption.encode("utf-8")
+            encoded_len = len(encoded)
+        except Exception as e:
+            encoded_len = 10000
+
+        if encoded_len > 200:
+            newcaption = " " + authorcaption + old_fsify(entry_caption)
+
     return newcaption
 
 def get_meta_str(f):
