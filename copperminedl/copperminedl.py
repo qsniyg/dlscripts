@@ -77,15 +77,20 @@ def requestpage(url, page=1):
 	}
 
 	images = soup.select("td.thumbnails td > a > img")
+	if len(images) == 0:
+		images = soup.select("td.thumbnails td > a > div.thumbcontainer > img")
 	if len(images) > 0:
 		for image in images:
 			imageurls = []
-			imageurl = urllib.parse.urljoin(url, re.sub("/thumb_([^/.?#]+\\.)", "/\\1", image["src"]))
+			# t_ is present in coppermine 1.5.24
+			imageurl = urllib.parse.urljoin(url, re.sub("/t(?:humb)?_([^/.?#]+\\.)", "/\\1", image["src"]))
 			imageurls.append(imageurl)
 			if ".JPG" in imageurl:
 				imageurls.append(imageurl.replace(".JPG", ".jpg"))
+			elif ".jpg" in imageurl:
+				imageurls.append(imageurl.replace(".jpg", ".JPG"))
 
-			caption = re.sub(".*/thumb_([^/.?#]+)\\..*", "\\1", image["src"])
+			caption = re.sub(".*/t(?:humb)?_([^/.?#]+)\\..*", "\\1", image["src"])
 			caption = albumid + " " + caption
 
 			date = 0
@@ -106,7 +111,17 @@ def requestpage(url, page=1):
 		totalpages = 1
 		foundmatch = False
 		for td in pagetds:
-			match = re.search("([0-9]+) files on ([0-9]+) page.s.", td.text)
+			filesregexes = [
+				"^\\s*([0-9]+) files on ([0-9]+) page.s.\\s*$",
+				# some coppermine sites ignore accept-language and only change language based on a cookie value set in an unknown way
+				"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$"
+			]
+
+			match = None
+			for regex in filesregexes:
+				match = re.search(regex, td.text)
+				if match:
+					break
 			if match:
 				totalpages = int(match.group(2))
 				foundmatch = True
