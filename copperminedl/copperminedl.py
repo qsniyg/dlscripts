@@ -33,6 +33,7 @@ def get_domain(url):
 	domain = urllib.parse.urlparse(url).netloc.lower()
 	return re.sub("^www\\.", "", domain)
 
+nopics = 0
 
 def requestpage(url, page=1):
 	newurl = re.sub("&page=[0-9]+", "&page=" + str(page), url)
@@ -81,31 +82,46 @@ def requestpage(url, page=1):
 		images = soup.select("td.thumbnails td > a > div.thumbcontainer > img")
 	if len(images) > 0:
 		for image in images:
-			imageurls = []
+			if re.search("^(?:\\.*\/)?images/thumbs/(?:t(?:humb)?_)?nopic\\.png$", image["src"]):
+				global nopics
+				nopics += 1
+				continue
+
+			image_entries = []
+
 			# t_ is present in coppermine 1.5.24
 			imageurl = urllib.parse.urljoin(url, re.sub("/t(?:humb)?_([^/.?#]+\\.)", "/\\1", image["src"]))
-			imageurls.append(imageurl)
-			if ".JPG" in imageurl:
-				imageurls.append(imageurl.replace(".JPG", ".jpg"))
-			elif ".jpg" in imageurl:
-				imageurls.append(imageurl.replace(".jpg", ".JPG"))
+			image_entries.append(imageurl)
 
-			caption = re.sub(".*/t(?:humb)?_([^/.?#]+)\\..*", "\\1", image["src"])
-			caption = albumid + " " + caption
+			# often fails or returns the wrong image, but sometimes returns a larger image (probably due to user error)... keep?
+			norm_imageurl = urllib.parse.urljoin(url, re.sub("/normal_([^/.?#]+\\.)", "/\\1", imageurl))
+			if norm_imageurl != imageurl:
+				image_entries.append(norm_imageurl)
 
-			date = 0
-			dateaddedre = re.search("Date added=([a-zA-Z, 0-9]+)", image["title"])
-			if dateaddedre:
-				date = time.mktime(parse(dateaddedre.groups(0)[0]).timetuple())
+			for imageurl in image_entries:
+				imageurls = []
+				imageurls.append(imageurl)
+				if ".JPG" in imageurl:
+					imageurls.append(imageurl.replace(".JPG", ".jpg"))
+				elif ".jpg" in imageurl:
+					imageurls.append(imageurl.replace(".jpg", ".JPG"))
 
-			myjson["entries"].append({
-				"caption": caption,
-				"date": date,
-				"album": albumtitle,
-				"author": author,
-				"images": [imageurls],
-				"videos": []
-			})
+				caption = re.sub(".*/([^/.?#]+)\\..*", "\\1", imageurl)
+				caption = albumid + " " + caption
+
+				date = 0
+				dateaddedre = re.search("Date added=([a-zA-Z, 0-9]+)", image["title"])
+				if dateaddedre:
+					date = time.mktime(parse(dateaddedre.groups(0)[0]).timetuple())
+
+				myjson["entries"].append({
+					"caption": caption,
+					"date": date,
+					"album": albumtitle,
+					"author": author,
+					"images": [imageurls],
+					"videos": []
+				})
 
 		pagetds = soup.select("tr > td > table > tr > td")
 		totalpages = 1
@@ -140,4 +156,6 @@ def requestpage(url, page=1):
 if __name__ == "__main__":
 	url = sys.argv[1]
 	myjson = requestpage(url)
+	if nopics > 0:
+		sys.stderr.write("Skipped " + str(nopics) + " blank images\n")
 	print(json.dumps(myjson))
