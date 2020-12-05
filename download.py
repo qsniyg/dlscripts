@@ -1036,6 +1036,10 @@ if __name__ == "__main__":
             video_urls = video["video"]
             if type(video_urls) not in (list, tuple):
                 video_urls = [video_urls]
+            if "video_dash" in video:
+                if video["video_dash"][0] == "<":
+                    video["video_dash"] = "data:application/dash+xml," + urllib.parse.quote(video["video_dash"], safe="")
+                video_urls.insert(0, video["video_dash"])
             if len(video_urls) == 0:
                 print("0 videos")
                 continue
@@ -1060,6 +1064,7 @@ if __name__ == "__main__":
                     pass
 
             exists = False
+            existing_file = None
             for file_ in files:
                 fullpath = os.path.join(thedir, file_)
                 if file_.startswith(output):  # and similar_filename(file_, output):
@@ -1083,6 +1088,7 @@ if __name__ == "__main__":
                             break
                     elif similar_filename(file_, output) and check_video(fullpath):
                         exists = True
+                        existing_file = fullpath
                         break
 
             if exists and not overwrite:
@@ -1163,6 +1169,9 @@ if __name__ == "__main__":
                 open(livelock, 'a').close()
 
                 livelocks.append(livelock)
+
+                if exists and existing_file:
+                    os.remove(existing_file)
 
                 cmdline = ["youtube-dl", urls[0], "-o", newfullout]
 
