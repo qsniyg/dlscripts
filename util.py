@@ -216,7 +216,7 @@ def download_file(url, output):
         except urllib.error.HTTPError as e:
             print(e)
             retval = e.code
-            if e.code == 404 or e.code == 403 or e.code == 410:  # 410: instagram
+            if e.code == 404 or e.code == 403 or e.code == 410:  # 410: instagram (gone)
                 return retval
         except Exception as e:
             print(e)
@@ -237,6 +237,7 @@ try:
     with open(os.path.join(os.path.dirname(__file__), "tokens.json"), "rb") as f:
         tokens = ujson.loads(f.read())
 except Exception as e:
+    print("[WARN] Unable to read tokens.json")
     pass
 
 
