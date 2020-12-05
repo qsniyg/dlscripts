@@ -57,6 +57,8 @@ def requestpage(url, page=1):
 	breadcrumbs = soup.select("table.maintable tr > td > span.statlink a")
 	if len(breadcrumbs) == 0:
 		breadcrumbs = soup.select("table.maintable tr > td.statlink > a")
+	if len(breadcrumbs) == 0:
+		breadcrumbs = soup.select("table.maintable tr > td.tableh1 > a")
 	breadcrumb_text = [];
 
 	for crumb in breadcrumbs:
@@ -110,9 +112,16 @@ def requestpage(url, page=1):
 				caption = albumid + " " + caption
 
 				date = 0
-				dateaddedre = re.search("Date added=([a-zA-Z, 0-9]+)", image["title"])
+				dateaddedre = re.search("(?:Date added|Data Envio|Ajouté le)(?:=|\\s*:\\s*)([a-zA-Zû, 0-9]+)", image["title"])
 				if dateaddedre:
-					date = time.mktime(parse(dateaddedre.groups(0)[0]).timetuple())
+					dateaddedtxt = dateaddedre.groups(0)[0]
+					dateaddedtxt = (dateaddedtxt
+						# portugese
+						.replace("Mai", "May")
+						.replace("Set", "September")
+						# french
+						.replace("Août", "August"))
+					date = time.mktime(parse(dateaddedtxt).timetuple())
 
 				myjson["entries"].append({
 					"caption": caption,
@@ -130,7 +139,9 @@ def requestpage(url, page=1):
 			filesregexes = [
 				"^\\s*([0-9]+) files on ([0-9]+) page.s.\\s*$",
 				# some coppermine sites ignore accept-language and only change language based on a cookie value set in an unknown way
-				"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$"
+				"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$",
+				"^\\s*([0-9]+) Fotos em ([0-9]+) pagina.s.\\s*$",
+				"^\\s*([0-9]+) photos sur ([0-9]+) page.s.\\s*$"
 			]
 
 			match = None
