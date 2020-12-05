@@ -46,11 +46,11 @@ verbose = 1
 
 cache = {}
 
-prev_pool = util.ThreadPool(2)
+prev_pool = util.ThreadPool(8)
 prev_running = False
-next_pool = util.ThreadPool(2)
+next_pool = util.ThreadPool(4)
 next_running = False
-main_pool = util.ThreadPool(1)
+main_pool = util.ThreadPool(4)
 
 downloading = {}
 
