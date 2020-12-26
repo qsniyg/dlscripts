@@ -23,10 +23,15 @@ def download(url, *args, **kwargs):
 	with urllib.request.urlopen(request) as response:
 		charset = response.headers.get_content_charset()
 
-		if charset:
-			return response.read().decode(charset)
-		else:
-			return response.read()
+		read_response = response.read()
+
+		if not charset:
+			return read_response
+
+		try:
+			return read_response.decode(charset)
+		except Exception as e:
+			return read_response
 
 
 def get_domain(url):
