@@ -35,9 +35,40 @@ def get_domain(url):
 
 nopics = 0
 
-def requestpage(url, page=1):
+def get_pages_match(els):
+	foundmatch = False
+	for el in els:
+		filesregexes = [
+			"^\\s*([0-9]+) files on ([0-9]+) page.s.\\s*$",
+			# some coppermine sites ignore accept-language and only change language based on a cookie value set in an unknown way
+			"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$",
+			"^\\s*([0-9]+) Fotos em ([0-9]+) pagina.s.\\s*$",
+			"^\\s*([0-9]+) photos sur ([0-9]+) page.s.\\s*$"
+		]
+
+		match = None
+		for regex in filesregexes:
+			match = re.search(regex, el.text)
+			if match:
+				break
+		if match:
+			return int(match.group(2))
+
+	return None
+
+def requestpage(url, page=None):
+	domain = get_domain(url)
+	is_intceleb = domain == "internetcelebrity.org"
+
+	if page is None:
+		pagematch = re.search("&page=([0-9]+)$", url)
+		if pagematch:
+			page = int(pagematch.group(1))
+		else:
+			page = 1
+
 	newurl = re.sub("&page=[0-9]+", "&page=" + str(page), url)
-	if "&page=" not in newurl:
+	if "&page=" not in newurl and not is_intceleb:
 		newurl = newurl + "&page=" + str(page)
 
 	data = download(newurl)
@@ -46,10 +77,16 @@ def requestpage(url, page=1):
 	# or span.footert, remove &copy;
 	# or js_vars = {...}, site_url, http://(...)/...
 	authortag = soup.select("title")[0]
-	author = get_domain(url)
+	author = domain
 	#author = re.sub(".*- ", "", authortag.text)
 
+	is_index = False
 	albumid = re.sub(".*[?&]album=([0-9]+).*", "\\1", url)
+	if is_intceleb and albumid == url:
+		albumid = re.sub(".*/card-of-[^/.0-9]*?-([0-9]+)-page-[0-9]+\\..*", "\\1", url)
+	if "index.php?cat=" in url and albumid == url:
+		albumid = re.sub(".*[?&]cat=([0-9]+).*", "\\1", url)
+		is_index = True
 	if albumid == url:
 		print("albumid == url")
 		return None
@@ -66,9 +103,13 @@ def requestpage(url, page=1):
 			breadcrumb_text.append(crumb.text)
 
 	albumtitle = " - ".join(breadcrumb_text)
-	if not albumtitle or len(albumtitle) == "":
-		sys.stderr.write("No album title!\n")
-		return None
+	if not albumtitle or len(albumtitle) == 0:
+		if is_intceleb:
+			albumtitle = soup.select("ul > li > h1.title")[0].text
+
+		if not albumtitle or len(albumtitle) == 0:
+			sys.stderr.write("No album title!\n")
+			return None
 
 	myjson = {
 		"title": author,
@@ -79,17 +120,42 @@ def requestpage(url, page=1):
 		"entries": []
 	}
 
-	images = soup.select("td.thumbnails td > a > img")
+	images = []
+	if is_index:
+		images = soup.select("table.maintable table > tr > td > span.alblink > a")
+		if len(images) == 0:
+			images = soup.select("table.maintable table > tr > td.albthumbnails > a")
+	if len(images) == 0:
+		images = soup.select("td.thumbnails td > a > img")
 	if len(images) == 0:
 		images = soup.select("td.thumbnails td > a > div.thumbcontainer > img")
+	if len(images) == 0 and is_intceleb:
+		images = soup.select(".panel-body > .tab-content > .container-fluid div > a > img")
 	if len(images) > 0:
 		for image in images:
+			linkel = image
+			if linkel.name != "a":
+				linkel = image.parent
+
+			if linkel.name.lower() == "a":
+				if "thumbnails.php?album=" in linkel["href"]:
+					sys.stderr.write("Requesting album " + linkel["href"] + "\n")
+					linkurl = urllib.parse.urljoin(url, linkel["href"])
+					albumjson = requestpage(linkurl, None)
+					myjson["entries"] += albumjson["entries"]
+					continue
+
+			if is_index:
+				# e.g. last additions, last viewed...
+				#sys.stderr.write("skipping\n")
+				continue
+
+			image_entries = []
+
 			if re.search("^(?:\\.*\/)?images/thumbs/(?:t(?:humb)?_)?nopic\\.png$", image["src"]):
 				global nopics
 				nopics += 1
 				continue
-
-			image_entries = []
 
 			# t_ is present in coppermine 1.5.24
 			imageurl = urllib.parse.urljoin(url, re.sub("/t(?:humb)?_([^/.?#]+\\.)", "/\\1", image["src"]))
@@ -132,32 +198,25 @@ def requestpage(url, page=1):
 					"videos": []
 				})
 
-		pagetds = soup.select("tr > td > table > tr > td")
+		pageselectors = [
+			"tr > td > table > tr > td",
+			"tr > td > table > tr > div.albpagebottom > div.albpagebottomtext"
+		]
+
 		totalpages = 1
 		foundmatch = False
-		for td in pagetds:
-			filesregexes = [
-				"^\\s*([0-9]+) files on ([0-9]+) page.s.\\s*$",
-				# some coppermine sites ignore accept-language and only change language based on a cookie value set in an unknown way
-				"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$",
-				"^\\s*([0-9]+) Fotos em ([0-9]+) pagina.s.\\s*$",
-				"^\\s*([0-9]+) photos sur ([0-9]+) page.s.\\s*$"
-			]
-
-			match = None
-			for regex in filesregexes:
-				match = re.search(regex, td.text)
-				if match:
-					break
-			if match:
-				totalpages = int(match.group(2))
+		for selector in pageselectors:
+			newpages = get_pages_match(soup.select(selector))
+			if newpages is not None:
+				totalpages = newpages
 				foundmatch = True
+				break;
 
 		if not foundmatch:
 			sys.stderr.write("Unable to find pages match\n")
 
 		if page < totalpages:
-			sys.stderr.write("Requesting page " + str(page+1) + "\n")
+			sys.stderr.write("Requesting page " + str(page+1) + "/" + str(totalpages) + "\n")
 			nextpagejson = requestpage(url, page+1)
 			myjson["entries"] += nextpagejson["entries"]
 
@@ -166,7 +225,12 @@ def requestpage(url, page=1):
 
 if __name__ == "__main__":
 	url = sys.argv[1]
-	myjson = requestpage(url)
+	page = 1
+	pagematch = re.search("&page=([0-9]+)$", url)
+	if pagematch:
+		page = int(pagematch.group(1))
+	# todo: None instead of page
+	myjson = requestpage(url, page)
 	if nopics > 0:
 		sys.stderr.write("Skipped " + str(nopics) + " blank images\n")
 	print(json.dumps(myjson))
