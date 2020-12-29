@@ -24,6 +24,7 @@ def download(url, *args, **kwargs):
 		charset = response.headers.get_content_charset()
 
 		read_response = response.read()
+		return read_response
 
 		if not charset:
 			return read_response
@@ -44,7 +45,7 @@ def get_pages_match(els):
 	foundmatch = False
 	for el in els:
 		filesregexes = [
-			"^\\s*([0-9]+) files on ([0-9]+) page.s.\\s*$",
+			"^\\s*([0-9]+) (?:files|albums) on ([0-9]+) page.s.\\s*$",
 			# some coppermine sites ignore accept-language and only change language based on a cookie value set in an unknown way
 			"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$",
 			"^\\s*([0-9]+) Fotos em ([0-9]+) pagina.s.\\s*$",
@@ -125,26 +126,45 @@ def requestpage(url, page=None):
 		"entries": []
 	}
 
+	categories = []
+	if is_index:
+		categories = soup.select("table.maintable > tr > td > table > tr > td > span.catlink > a")
+
+	linkid = 0
+	for category in categories:
+		linkid += 1
+		linkel = category
+		if "index.php?cat=" in linkel["href"]:
+			sys.stderr.write("Requesting category " + linkel["href"] + " (" + str(linkid) + "/" + str(len(categories)) + ")\n")
+			linkurl = urllib.parse.urljoin(url, linkel["href"])
+			albumjson = requestpage(linkurl, None)
+			myjson["entries"] += albumjson["entries"]
+			continue
+
 	images = []
 	if is_index:
 		images = soup.select("table.maintable table > tr > td > span.alblink > a")
 		if len(images) == 0:
 			images = soup.select("table.maintable table > tr > td.albthumbnails > a")
-	if len(images) == 0:
+	else:
 		images = soup.select("td.thumbnails td > a > img")
-	if len(images) == 0:
-		images = soup.select("td.thumbnails td > a > div.thumbcontainer > img")
-	if len(images) == 0 and is_intceleb:
-		images = soup.select(".panel-body > .tab-content > .container-fluid div > a > img")
+		if len(images) == 0:
+			images = soup.select("td.thumbnails td > a > div.thumbcontainer > img")
+		if len(images) == 0 and is_intceleb:
+			images = soup.select(".panel-body > .tab-content > .container-fluid div > a > img")
+
 	if len(images) > 0:
+		linkid = 0
 		for image in images:
 			linkel = image
 			if linkel.name != "a":
 				linkel = image.parent
 
+			linkid += 1
+
 			if linkel.name.lower() == "a":
 				if "thumbnails.php?album=" in linkel["href"]:
-					sys.stderr.write("Requesting album " + linkel["href"] + "\n")
+					sys.stderr.write("Requesting album " + linkel["href"] + " (" + str(linkid) + "/" + str(len(images)) + ")\n")
 					linkurl = urllib.parse.urljoin(url, linkel["href"])
 					albumjson = requestpage(linkurl, None)
 					myjson["entries"] += albumjson["entries"]
