@@ -895,8 +895,17 @@ if __name__ == "__main__":
             oldthedir = thedirbase + old_fsify_album(entry["album"]) + "/"
             thedir = thedirbase + fsify_album(entry["album"]) + "/"
 
+            similardir = None
+            if "similaralbum" in entry:
+                similardir = thedirbase + fsify_album(entry["similaralbum"]) + "/"
+
             if not os.path.exists(thedir):
-                if os.path.exists(oldthedir):
+                if similardir is not None and similardir != thedir and os.path.exists(similardir):
+                    print("Renaming " + similardir + " to " + thedir)
+                    os.rename(similardir, thedir)
+                    dirs.append(thedir)
+                    files = os.listdir(thedir)
+                elif os.path.exists(oldthedir):
                     print("Renaming " + oldthedir + " to " + thedir)
                     os.rename(oldthedir, thedir)
                     dirs.append(thedir)
