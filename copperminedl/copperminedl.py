@@ -62,7 +62,7 @@ def get_pages_match(els):
 
 	return None
 
-def requestpage(url, page=None):
+def requestpage(url, page=None, paginate=True):
 	domain = get_domain(url)
 	is_intceleb = domain == "internetcelebrity.org"
 
@@ -102,16 +102,25 @@ def requestpage(url, page=None):
 		breadcrumbs = soup.select("table.maintable tr > td.statlink > a")
 	if len(breadcrumbs) == 0:
 		breadcrumbs = soup.select("table.maintable tr > td.tableh1 > a")
-	breadcrumb_text = [];
+	orig_breadcrumb_text = []
+	breadcrumb_text = []
 
 	for crumb in breadcrumbs:
 		if "?" in crumb["href"]:
-			breadcrumb_text.append(crumb.text)
+			our_text = crumb.text.strip()
+			orig_breadcrumb_text.append(our_text)
+
+			# "photos - photos 2020" -> "photos - 2020"
+			if len(breadcrumb_text) > 0 and our_text.startswith(breadcrumb_text[-1]):
+				our_text = our_text[len(breadcrumb[-1]):].strip()
+			breadcrumb_text.append(our_text)
 
 	albumtitle = " - ".join(breadcrumb_text)
+	oldalbumtitle = " - ".join(orig_breadcrumb_text)
 	if not albumtitle or len(albumtitle) == 0:
 		if is_intceleb:
 			albumtitle = soup.select("ul > li > h1.title")[0].text
+			oldalbumtitle = albumtitle
 
 		if not albumtitle or len(albumtitle) == 0:
 			sys.stderr.write("No album title!\n")
@@ -218,6 +227,7 @@ def requestpage(url, page=None):
 					"caption": caption,
 					"date": date,
 					"album": albumtitle,
+					"similaralbum": oldalbumtitle,
 					"author": author,
 					"images": [imageurls],
 					"videos": []
@@ -240,7 +250,7 @@ def requestpage(url, page=None):
 		if not foundmatch:
 			sys.stderr.write("Unable to find pages match\n")
 
-		if page < totalpages:
+		if paginate is True and page < totalpages:
 			sys.stderr.write("Requesting page " + str(page+1) + "/" + str(totalpages) + "\n")
 			nextpagejson = requestpage(url, page+1)
 			myjson["entries"] += nextpagejson["entries"]
@@ -250,12 +260,16 @@ def requestpage(url, page=None):
 
 if __name__ == "__main__":
 	url = sys.argv[1]
+	paginate = True
+	if len(sys.argv) > 2:
+		if sys.argv[2] == "nopaginate":
+			paginate = False
 	page = 1
 	pagematch = re.search("&page=([0-9]+)$", url)
 	if pagematch:
 		page = int(pagematch.group(1))
 	# todo: None instead of page
-	myjson = requestpage(url, page)
+	myjson = requestpage(url, page, paginate)
 	if nopics > 0:
 		sys.stderr.write("Skipped " + str(nopics) + " blank images\n")
 	print(json.dumps(myjson))
