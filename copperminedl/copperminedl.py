@@ -112,7 +112,7 @@ def requestpage(url, page=None, paginate=True):
 
 			# "photos - photos 2020" -> "photos - 2020"
 			if len(breadcrumb_text) > 0 and our_text.startswith(breadcrumb_text[-1]):
-				our_text = our_text[len(breadcrumb[-1]):].strip()
+				our_text = our_text[len(breadcrumb_text[-1]):].strip()
 			breadcrumb_text.append(our_text)
 
 	albumtitle = " - ".join(breadcrumb_text)
