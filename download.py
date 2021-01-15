@@ -919,6 +919,8 @@ if __name__ == "__main__":
                         continue
                     print("Renaming " + similardir + " to " + thedir)
                     os.rename(similardir, thedir)
+                    if similardir in dirs:
+                        dirs.remove(similardir)
                     dirs.append(thedir)
                     files = os.listdir(thedir)
                     renamed_similar = True
