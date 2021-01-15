@@ -921,6 +921,8 @@ if __name__ == "__main__":
                     os.rename(similardir, thedir)
                     if similardir in dirs:
                         dirs.remove(similardir)
+                    if similardir[:-1] in dirs: # to remove the trailing /
+                        dirs.remove(similardir[:-1])
                     dirs.append(thedir)
                     files = os.listdir(thedir)
                     renamed_similar = True
