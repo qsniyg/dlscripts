@@ -623,14 +623,20 @@ def remext(file1):
 def similar_filename(file1, file2):
     return os.path.basename(remext(file1)) == os.path.basename(file2) # hack!!
 
-def fsify_base(text):
+def old_fsify_base(text):
     return sanitize_path(text.replace("\n", " ").replace("\r", " ").replace("/", " (slash) "))
 
+def fsify_base(text):
+    return sanitize_path(text.replace("\n", " ").replace("\r", " ").replace("/", "∕"))
+
 def old_fsify(text):
-    return sanitize_path(fsify_base(text)[:50])
+    return sanitize_path(old_fsify_base(text)[:50])
 
 def old_fsify_album(text):
-    return sanitize_path(fsify_base(text)[:100].strip())
+    return sanitize_path(old_fsify_base(text)[:100].strip())
+
+def fsify_album_oldbase(text):
+    return sanitize_path(old_fsify_base(text)[:200].strip())
 
 def fsify_album(text):
     return sanitize_path(fsify_base(text)[:200].strip())
@@ -892,25 +898,33 @@ if __name__ == "__main__":
         newdate = datetime.datetime.fromtimestamp(entry["date"]).isoformat()
 
         if "album" in entry and entry["album"]:
+            similardirs = []
+
             oldthedir = thedirbase + old_fsify_album(entry["album"]) + "/"
+            similardirs.append(oldthedir)
+            oldthedir = thedirbase + fsify_album_oldbase(entry["album"]) + "/"
+            similardirs.append(oldthedir)
+
             thedir = thedirbase + fsify_album(entry["album"]) + "/"
 
             similardir = None
             if "similaralbum" in entry:
                 similardir = thedirbase + fsify_album(entry["similaralbum"]) + "/"
+                similardirs.append(oldthedir)
 
             if not os.path.exists(thedir):
-                if similardir is not None and similardir != thedir and os.path.exists(similardir):
+                renamed_similar = False
+                for similardir in similardirs:
+                    if similardir == thedir or not os.path.exists(similardir):
+                        continue
                     print("Renaming " + similardir + " to " + thedir)
                     os.rename(similardir, thedir)
                     dirs.append(thedir)
                     files = os.listdir(thedir)
-                elif os.path.exists(oldthedir):
-                    print("Renaming " + oldthedir + " to " + thedir)
-                    os.rename(oldthedir, thedir)
-                    dirs.append(thedir)
-                    files = os.listdir(thedir)
-                else:
+                    renamed_similar = True
+                    break
+
+                if not renamed_similar:
                     os.makedirs(thedir, exist_ok=True)
                     dirs.append(thedir)
                     files = []
