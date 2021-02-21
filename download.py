@@ -390,7 +390,7 @@ def download_real_cb(url, output, options, cb):
         cb(retval)
 
 def download(pool, url, output, options = None, cb = None):
-    if do_async:
+    if do_async and pool is not None:
         pool.add_task(download_real_cb, url, output, options, cb)
     else:
         download_real_cb(url, output, options, cb)
@@ -466,7 +466,11 @@ def check_image(url):
         if os.stat(url).st_size == 0:
             return False
 
-        import PIL.Image
+        try:
+            import PIL.Image
+        except Exception as ee:
+            print(ee)
+
         image = PIL.Image.open(url)
         if image.format == "JPEG":
             image.load()
@@ -569,7 +573,7 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
                 if type(options) == dict and "addext" in options and type(options["addext"]) in [list, tuple]:
                     options["addext"] = options["addext"][1:]
 
-                download_image(pool, url, oldoutput, options, *args, **kwargs)
+                download_image(None, url, oldoutput, options, *args, **kwargs)
                 return
 
             has_errors = True
@@ -588,7 +592,7 @@ def download_image(pool, url, output, options = None, *args, **kwargs):
             kwargs["lastcontent"] = content
             kwargs["same_times"] = 0
 
-        download_image(pool, url, oldoutput, options, *args, **kwargs)
+        download_image(None, url, oldoutput, options, *args, **kwargs)
 
     newurl = url
     if type(newurl) in [list, tuple]:
@@ -910,7 +914,11 @@ if __name__ == "__main__":
             similardir = None
             if "similaralbum" in entry:
                 similardir = thedirbase + fsify_album(entry["similaralbum"]) + "/"
-                similardirs.append(oldthedir)
+                similardirs.append(similardir)
+                similardir = thedirbase + old_fsify_album(entry["similaralbum"]) + "/"
+                similardirs.append(similardir)
+                similardir = thedirbase + fsify_album_oldbase(entry["similaralbum"]) + "/"
+                similardirs.append(similardir)
 
             if not os.path.exists(thedir):
                 renamed_similar = False
