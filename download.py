@@ -219,6 +219,7 @@ def fix_tumblr(x):
 
     return x
 
+tried_dns_cache = False
 
 def download_real(url, output, options):
     if not running:
@@ -226,6 +227,17 @@ def download_real(url, output, options):
 
     import urllib.request
     import http.client
+
+    global tried_dns_cache
+    if not tried_dns_cache:
+        tried_dns_cache = True
+        try:
+            import dns_cache
+            dns_cache.override_system_resolver()
+        except ImportError as e:
+            pass
+        except Exception as e:
+            print(e)
 
     if not options:
         options = {
