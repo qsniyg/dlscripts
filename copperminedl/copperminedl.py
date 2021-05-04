@@ -6,6 +6,8 @@ import urllib.parse
 from dateutil.parser import parse
 import time
 import re
+import copy
+import os.path
 
 
 def download(url, *args, **kwargs):
@@ -24,7 +26,7 @@ def download(url, *args, **kwargs):
 		charset = response.headers.get_content_charset()
 
 		read_response = response.read()
-		return read_response
+		#return read_response
 
 		if not charset:
 			return read_response
@@ -62,9 +64,94 @@ def get_pages_match(els):
 
 	return None
 
+def get_webarchive_virtual_url(url):
+	return re.sub(r"^[a-z]+:\/\/[^/]+\/+web\/+[0-9]+(?:im_)?\/+(https?:)\/+", "\\1//", url)
+
+def request_opendir(url, base_entry):
+	sys.stderr.write("Requesting open directory " + url + "...\n")
+	data = download(url)
+	soup = bs4.BeautifulSoup(data, 'lxml')
+
+	if "author" not in base_entry:
+		base_entry["author"] = get_domain(url)
+
+	if "album" not in base_entry:
+		clean_albumurl = re.sub(r".*/images/albums/+", "", url)
+		clean_albumurl = urllib.parse.unquote(re.sub(r"/+$", "", clean_albumurl))
+		base_entry["album"] = " - ".join(clean_albumurl.split("/"))
+
+	# hacky
+	if "album_id" not in base_entry:
+		clean_albumid = re.sub(r"/+$", "", url)
+		clean_albumid = urllib.parse.unquote(os.path.basename(clean_albumid))
+		base_entry["album_id"] = clean_albumid
+
+	myjson = {
+		"title": base_entry["author"],
+		"author": base_entry["author"],
+		"config": {
+			"generator": "coppermine"
+		},
+		"entries": []
+	}
+
+	tr_els = soup.select("table tr")
+	for el in tr_els:
+		link = el.select("td > a")
+		if len(link) < 1:
+			continue
+
+		link = link[0]
+		if link.text == "Parent Directory":
+			continue
+
+		if link["href"].startswith("thumb_") or link["href"].startswith("normal_"):
+			continue
+
+		our_entry = copy.copy(base_entry)
+
+		linkurl = urllib.parse.urljoin(url, link["href"])
+		if linkurl.endswith("/"):
+			our_entry["album_id"] = urllib.parse.unquote(link["href"].replace("/", "") + "-" + our_entry["album_id"])
+			myjson["entries"] += request_opendir(linkurl, our_entry)["entries"]
+			continue
+
+		caption = re.sub(r".*\/", "", link["href"])
+		caption = re.sub(r"\..*", "", caption)
+		caption = urllib.parse.unquote(caption)
+
+		date_el = el.select("td")[2]
+		date = time.mktime(parse(date_el.text).timetuple())
+
+		our_entry["images"] = [linkurl]
+		our_entry["videos"] = []
+
+		if "album_id" in our_entry:
+			caption = our_entry["album_id"] + " " + caption
+			del our_entry["album_id"]
+
+		our_entry["caption"] = caption
+		our_entry["date"] = date
+
+		myjson["entries"].append(our_entry)
+
+	return myjson
+
 def requestpage(url, page=None, paginate=True):
 	domain = get_domain(url)
 	is_intceleb = domain == "internetcelebrity.org"
+	is_webarchive = domain == "web.archive.org"
+
+	virtual_url = url
+	virtual_domain = domain
+
+	#sys.stderr.write(virtual_url + " " + virtual_domain + "\n")
+
+	if is_webarchive:
+		virtual_url = get_webarchive_virtual_url(url)
+		virtual_domain = get_domain(virtual_url)
+
+	#sys.stderr.write(virtual_url + " " + virtual_domain + "\n")
 
 	if page is None:
 		pagematch = re.search("&page=([0-9]+)$", url)
@@ -74,7 +161,7 @@ def requestpage(url, page=None, paginate=True):
 			page = 1
 
 	newurl = re.sub("&page=[0-9]+", "&page=" + str(page), url)
-	if "&page=" not in newurl and not is_intceleb:
+	if "&page=" not in newurl and not is_intceleb and not is_webarchive:
 		newurl = newurl + "&page=" + str(page)
 
 	data = download(newurl)
@@ -83,7 +170,7 @@ def requestpage(url, page=None, paginate=True):
 	# or span.footert, remove &copy;
 	# or js_vars = {...}, site_url, http://(...)/...
 	authortag = soup.select("title")[0]
-	author = domain
+	author = virtual_domain
 	#author = re.sub(".*- ", "", authortag.text)
 
 	is_index = False
@@ -97,7 +184,9 @@ def requestpage(url, page=None, paginate=True):
 		print("albumid == url")
 		return None
 
-	breadcrumbs = soup.select("table.maintable tr > td > span.statlink a")
+	breadcrumbs = soup.select("table.maintable tr > td.tableh1 > span.statlink a")
+	if len(breadcrumbs) == 0:
+		breadcrumbs = soup.select("table.maintable tr > td > span.statlink a")
 	if len(breadcrumbs) == 0:
 		breadcrumbs = soup.select("table.maintable tr > td.statlink > a")
 	if len(breadcrumbs) == 0:
@@ -175,8 +264,30 @@ def requestpage(url, page=None, paginate=True):
 				if "thumbnails.php?album=" in linkel["href"]:
 					sys.stderr.write("Requesting album " + linkel["href"] + " (" + str(linkid) + "/" + str(len(images)) + ")\n")
 					linkurl = urllib.parse.urljoin(url, linkel["href"])
-					albumjson = requestpage(linkurl, None)
-					myjson["entries"] += albumjson["entries"]
+
+					try:
+						albumjson = requestpage(linkurl, None)
+						myjson["entries"] += albumjson["entries"]
+					except Exception as e:
+						if is_webarchive:
+							image_el = image
+							if image_el.name != "img":
+								while image_el and image_el.name != "table":
+									image_el = image_el.parent
+								image_el = image_el.select("a > img")[0]
+							opendirname = os.path.dirname(get_webarchive_virtual_url(urllib.parse.urljoin(url, image_el["src"]))) + "/"
+							base_entry = {
+								"album_id": re.sub(".*[?&]album=([0-9]+).*", "\\1", linkel["href"]),
+								"album": albumtitle + " - " + linkel.text,
+								"author": author,
+								"videos": []
+							}
+							opendir_entries = request_opendir(opendirname, base_entry)
+							myjson["entries"] += opendir_entries["entries"]
+							#print(json.dumps(opendir_entries))
+							#print(json.dumps(base_entry))
+						else:
+							raise e
 					continue
 
 			if is_index:
@@ -193,6 +304,8 @@ def requestpage(url, page=None, paginate=True):
 
 			# t_ is present in coppermine 1.5.24
 			imageurl = urllib.parse.urljoin(url, re.sub("/t(?:humb)?_([^/.?#]+\\.)", "/\\1", image["src"]))
+			if is_webarchive:
+				imageurl = get_webarchive_virtual_url(imageurl)
 			image_entries.append(imageurl)
 
 			# often fails or returns the wrong image, but sometimes returns a larger image (probably due to user error)... keep?
@@ -261,9 +374,17 @@ def requestpage(url, page=None, paginate=True):
 if __name__ == "__main__":
 	url = sys.argv[1]
 	paginate = True
+	is_opendir = False
 	if len(sys.argv) > 2:
 		if sys.argv[2] == "nopaginate":
 			paginate = False
+		elif sys.argv[2] == "opendir":
+			is_opendir = True
+
+	if is_opendir:
+		print(json.dumps(request_opendir(url, {})))
+		sys.exit()
+
 	page = 1
 	pagematch = re.search("&page=([0-9]+)$", url)
 	if pagematch:
