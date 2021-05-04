@@ -50,7 +50,7 @@ def get_pages_match(els):
 			"^\\s*([0-9]+) (?:files|albums) on ([0-9]+) page.s.\\s*$",
 			# some coppermine sites ignore accept-language and only change language based on a cookie value set in an unknown way
 			"^\\s*plik.w: ([0-9]+), stron: ([0-9]+)\\s*$",
-			"^\\s*([0-9]+) Fotos em ([0-9]+) pagina.s.\\s*$",
+			"^\\s*([0-9]+) (?:Fotos|albuns) em ([0-9]+) p.gina.s.\\s*$",
 			"^\\s*([0-9]+) photos sur ([0-9]+) page.s.\\s*$"
 		]
 
